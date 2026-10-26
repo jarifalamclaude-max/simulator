@@ -1,29 +1,20 @@
 {
-  "name": "life-as-duburi",
+  "name": "duburi-rov-sim",
   "version": "1.0.0",
-  "description": "Life as Duburi: a 1-4 player underwater robotics game on the DUBURI ROV simulator physics",
+  "description": "DUBURI ROV simulator with ArduSub emulation and CFD-derived hydrodynamics",
   "main": "src/main.js",
   "scripts": {
-    "build": "node build.mjs",
     "test": "node --test tests/*.test.mjs",
-    "e2e": "node tests/e2e.mjs dist/e2e && node tests/controls-e2e.mjs dist/e2e"
+    "build": "node build.mjs",
+    "build:wasm": "node tools/build-wasm.mjs",
+    "validate:cfd": "node tools/validate-cfd.mjs"
   },
-  "keywords": [
-    "auv",
-    "rov",
-    "underwater",
-    "robotics",
-    "game",
-    "threejs",
-    "duburi"
-  ],
+  "keywords": [],
   "author": "Team DUBURI",
   "license": "GPL-3.0-or-later",
   "dependencies": {
+    "esbuild": "^0.24.0",
     "three": "^0.169.0"
   },
-  "type": "module",
-  "devDependencies": {
-    "esbuild": "^0.25.12"
-  }
+  "type": "module"
 }

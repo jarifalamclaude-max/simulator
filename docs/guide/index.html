@@ -1,0 +1,1200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>DUBURI Simulator Documentation</title>
+<meta name="description" content="User guide, physics and control reference for the DUBURI ROV simulator (ArduSub 4.5.7 port, Fossen 6-DOF plant).">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Saira+Semi+Condensed:wght@500;600;700&display=swap">
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']], tags: 'none' },
+  svg: { fontCache: 'global' },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] },
+  startup: { ready() { MathJax.startup.defaultReady(); document.documentElement.classList.add('mj-ready'); } },
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg-full.js"></script>
+<style>
+html, body { margin: 0; }
+/* Layout: instrument-panel docs — sticky top bar, left index rail, one reading column; figures may run wider. Tokens follow the simulator's own Cockpit-style palette (dark first). */
+:root {
+  color-scheme: dark;
+  --bg: #06131b;          /* abyss */
+  --bg-2: #0b1d28;        /* raised glass */
+  --bg-3: #10283a;        /* hover / code */
+  --line: rgba(142, 196, 214, 0.16);
+  --line-2: rgba(142, 196, 214, 0.32);
+  --ink: #e3eef3;
+  --ink-2: #a9bfca;
+  --ink-3: #7590a0;
+  --accent: #5cc8e0;      /* sonar cyan */
+  --accent-ink: #04161d;
+  --foam: #ffb547;        /* buoyancy-foam orange */
+  --reverse: #4f8dff;
+  --good: #22b86a;
+  --warning: #fab219;
+  --critical: #e8615a;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --font-display: "Saira Semi Condensed", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+  --font-data: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  --fs-xs: 0.75rem; --fs-sm: 0.86rem; --fs-md: 1rem; --fs-lg: 1.18rem; --fs-xl: 1.55rem; --fs-xxl: 2.3rem;
+  --bar-h: 58px;
+  --rail-w: 264px;
+  --read: 46rem;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f3f7f9; --bg-2: #ffffff; --bg-3: #e6eff3;
+    --line: rgba(11, 40, 54, 0.12); --line-2: rgba(11, 40, 54, 0.26);
+    --ink: #0b2230; --ink-2: #3b5868; --ink-3: #5e7886;
+    --accent: #0a7d97; --accent-ink: #ffffff; --foam: #b86200; --reverse: #2f6ae0;
+    --good: #16824a; --warning: #946400; --critical: #c23a32;
+    --shadow: 0 10px 30px rgba(11, 34, 48, 0.12);
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f7f9; --bg-2: #ffffff; --bg-3: #e6eff3;
+  --line: rgba(11, 40, 54, 0.12); --line-2: rgba(11, 40, 54, 0.26);
+  --ink: #0b2230; --ink-2: #3b5868; --ink-3: #5e7886;
+  --accent: #0a7d97; --accent-ink: #ffffff; --foam: #b86200; --reverse: #2f6ae0;
+  --good: #16824a; --warning: #946400; --critical: #c23a32;
+  --shadow: 0 10px 30px rgba(11, 34, 48, 0.12);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-behavior: smooth; scroll-padding-top: calc(var(--bar-h) + 16px); }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: var(--fs-md); line-height: 1.62; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg-2); }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+code, kbd, .mono { font-family: var(--font-data); font-size: 0.9em; }
+code { background: var(--bg-3); padding: 0.08em 0.36em; border-radius: 4px; overflow-wrap: anywhere; }
+kbd { display: inline-block; min-width: 1.7em; text-align: center; padding: 0.05em 0.45em; border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 5px; background: var(--bg-2); color: var(--ink); white-space: nowrap; }
+h1, h2, h3, h4 { font-family: var(--font-display); text-wrap: balance; line-height: 1.15; margin: 0; letter-spacing: 0.01em; }
+h2 { font-size: var(--fs-xl); font-weight: 700; }
+h3 { font-size: var(--fs-lg); font-weight: 600; margin-top: 0.6rem; }
+h4 { font-size: var(--fs-md); font-weight: 600; color: var(--ink-2); }
+p, ul, ol { margin: 0; }
+ul, ol { padding-left: 1.3rem; display: grid; gap: 0.35rem; }
+.eyebrow { font-family: var(--font-display); font-size: var(--fs-xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+.lead { font-size: var(--fs-lg); color: var(--ink-2); line-height: 1.55; }
+.muted { color: var(--ink-3); }
+.small { font-size: var(--fs-sm); }
+
+/* ---------- top bar ---------- */
+.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; height: var(--bar-h); display: flex; align-items: center; gap: 14px; background: color-mix(in srgb, var(--bg-2) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); flex: none; }
+.mark { width: 32px; height: 32px; border-radius: 8px; background: #06131b; color: #ffb547; display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; border: 1px solid var(--line-2); }
+.brand .logo-img { height: 38px; width: auto; border-radius: 6px; background: #fff; padding: 2px 4px; display: block; }
+.brand b { font-family: var(--font-display); font-weight: 700; letter-spacing: 0.18em; font-size: 1.05rem; }
+.brand div span { display: block; font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: 0.04em; margin-top: -2px; }
+.search { flex: 1; max-width: 420px; margin-left: auto; position: relative; }
+.search input { width: 100%; height: 36px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); padding: 0 12px 0 34px; font: inherit; font-size: var(--fs-sm); }
+.search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; stroke: var(--ink-3); fill: none; }
+.search-results { position: absolute; top: 42px; left: 0; right: 0; background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: var(--shadow); max-height: 60vh; overflow: auto; padding: 6px; display: grid; gap: 2px; }
+.search-results a { display: block; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: var(--ink); }
+.search-results a:hover, .search-results a.on { background: var(--bg-3); }
+.search-results small { display: block; color: var(--ink-3); font-size: var(--fs-xs); }
+.toplinks { display: flex; gap: 8px; flex: none; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--ink); font: inherit; font-size: var(--fs-sm); font-weight: 500; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.menu-btn { display: none; }
+
+/* ---------- shell ---------- */
+.shell { display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); }
+.rail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--bar-h)); height: calc(100vh - var(--bar-h) - env(safe-area-inset-top, 0px)); overflow: auto; border-right: 1px solid var(--line); padding: 20px 14px 40px max(16px, env(safe-area-inset-left, 0px)); }
+.rail h5 { margin: 18px 10px 6px; font-family: var(--font-display); font-size: var(--fs-xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.rail h5:first-child { margin-top: 0; }
+.rail a { display: block; padding: 5px 10px; border-radius: 6px; color: var(--ink-2); text-decoration: none; font-size: var(--fs-sm); line-height: 1.35; border-left: 2px solid transparent; }
+.rail a.sub { padding-left: 22px; font-size: var(--fs-xs); color: var(--ink-3); }
+.rail a:hover { background: var(--bg-3); color: var(--ink); }
+.rail a.on { color: var(--ink); background: var(--bg-3); border-left-color: var(--accent); }
+main { min-width: 0; padding-block: 34px 120px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.col { max-width: var(--read); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.05rem; }
+.wide { max-width: 64rem; margin-inline: auto; width: 100%; }
+section.doc { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.05rem; padding-top: 3.2rem; }
+.step, .step .body, .hero, .note, figure { min-width: 0; }
+section.doc:first-child { padding-top: 0; }
+section.doc > .head { display: grid; gap: 0.45rem; padding-bottom: 0.7rem; border-bottom: 1px solid var(--line); }
+.anchor { color: var(--ink-3); text-decoration: none; margin-left: 0.35em; opacity: 0; font-weight: 500; }
+h2:hover .anchor, h3:hover .anchor { opacity: 1; }
+
+/* ---------- hero ---------- */
+.hero { display: grid; gap: 1.1rem; padding-bottom: 1.6rem; border-bottom: 1px solid var(--line); }
+.hero-logo { width: min(320px, 70%); height: auto; border-radius: 10px; background: #fff; padding: 6px 10px; }
+.hero h1 { font-size: var(--fs-xxl); font-weight: 700; letter-spacing: 0.01em; }
+.hero h1 em { font-style: normal; color: var(--foam); }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.facts div { background: var(--bg-2); padding: 12px 14px; display: grid; gap: 2px; }
+.facts b { font-family: var(--font-data); font-weight: 500; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.facts span { color: var(--ink-3); font-size: var(--fs-xs); }
+.cta { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* ---------- figures & lightbox ---------- */
+figure { margin: 0; display: grid; gap: 8px; }
+figure img { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line-2); display: block; cursor: zoom-in; background: var(--bg-3); aspect-ratio: 1440 / 900; }
+figcaption { font-size: var(--fs-sm); color: var(--ink-3); }
+figcaption b { color: var(--ink-2); font-weight: 600; }
+.lightbox { position: fixed; inset: 0; z-index: 50; background: rgba(2, 8, 12, 0.88); display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.lightbox img { max-width: min(1440px, 100%); max-height: 86vh; border-radius: 8px; box-shadow: var(--shadow); }
+.lightbox p { color: #e3eef3; text-align: center; margin-top: 10px; font-size: var(--fs-sm); }
+.lightbox button { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: calc(14px + env(safe-area-inset-right, 0px)); }
+
+/* ---------- guide steps ---------- */
+.steps { list-style: none; padding: 0; counter-reset: step; display: grid; gap: 2.2rem; }
+.step { display: grid; gap: 0.8rem; counter-increment: step; }
+.step > h3 { display: flex; align-items: baseline; gap: 10px; margin: 0; }
+.step > h3::before { content: counter(step); font-family: var(--font-data); font-size: var(--fs-sm); font-weight: 500; color: var(--accent-ink); background: var(--accent); width: 1.8rem; height: 1.8rem; border-radius: 50%; display: inline-grid; place-items: center; flex: none; transform: translateY(-2px); }
+.step .body { display: grid; gap: 0.6rem; padding-left: calc(1.8rem + 10px); }
+@media (max-width: 640px) { .step .body { padding-left: 0; } }
+
+/* ---------- callouts ---------- */
+.note { border: 1px solid var(--line-2); border-left: 3px solid var(--accent); background: var(--bg-2); border-radius: 8px; padding: 12px 14px; display: grid; gap: 0.4rem; }
+.note.warn { border-left-color: var(--warning); }
+.note.bad { border-left-color: var(--critical); }
+.note > b:first-child { font-family: var(--font-display); letter-spacing: 0.04em; }
+
+/* ---------- tables ---------- */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); }
+table { border-collapse: collapse; width: 100%; font-size: var(--fs-sm); }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--font-display); font-weight: 600; letter-spacing: 0.04em; color: var(--ink-2); background: var(--bg-3); white-space: nowrap; font-size: var(--fs-xs); text-transform: uppercase; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-data); }
+td code { white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line-2); font-size: var(--fs-xs); white-space: nowrap; color: var(--ink-2); }
+.pill.yes { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+.pill.no { color: var(--ink-3); }
+.pill.off { color: var(--critical); border-color: color-mix(in srgb, var(--critical) 45%, transparent); }
+.pill.dot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* ---------- chips / filters ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { height: 30px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--ink-2); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+
+/* ---------- panel tour ---------- */
+.tour { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.card { display: grid; grid-template-rows: auto 1fr; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg-2); text-align: left; padding: 0; color: inherit; font: inherit; cursor: zoom-in; }
+.card:hover { border-color: var(--accent); }
+.card img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: 0 0; display: block; border-bottom: 1px solid var(--line); }
+.card div { padding: 10px 12px 12px; display: grid; gap: 3px; }
+.card b { font-family: var(--font-display); font-weight: 600; font-size: var(--fs-md); }
+.card span { color: var(--ink-3); font-size: var(--fs-sm); line-height: 1.45; }
+
+/* ---------- architecture diagram ---------- */
+.diagram { border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); padding: 12px; display: grid; gap: 12px; }
+.diagram .svg-wrap { overflow-x: auto; }
+.diagram svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.diagram .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.node rect { fill: var(--bg-3); stroke: var(--line-2); stroke-width: 1.2; rx: 9; transition: fill 0.2s, stroke 0.2s; }
+.node text { fill: var(--ink); font-family: var(--font-display); font-weight: 600; font-size: 15px; }
+.node text.s { fill: var(--ink-3); font-family: var(--font-body); font-weight: 400; font-size: 11.5px; }
+.node { cursor: pointer; }
+.node:hover rect, .node:focus rect { stroke: var(--accent); }
+.node.sel rect { stroke: var(--accent); stroke-width: 2; }
+.node.lit rect { fill: color-mix(in srgb, var(--accent) 26%, var(--bg-3)); stroke: var(--accent); }
+.node:focus { outline: none; }
+.wire { stroke: var(--ink-3); stroke-width: 1.6; fill: none; }
+.wire.loop { stroke: var(--accent); stroke-width: 1.8; }
+.band-label { fill: var(--ink-3); font-family: var(--font-display); font-size: 12px; letter-spacing: 0.14em; font-weight: 600; }
+.band { fill: none; stroke: var(--line); stroke-dasharray: 4 5; }
+.arrowhead { fill: var(--ink-3); }
+.arrowhead.loop { fill: var(--accent); }
+.detail { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 6px; min-height: 7.5rem; }
+.detail h4 { color: var(--ink); font-size: var(--fs-lg); }
+.detail dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; font-size: var(--fs-sm); }
+.detail dt { color: var(--ink-3); }
+.detail dd { margin: 0; min-width: 0; }
+
+/* ---------- equations ---------- */
+.eq { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; display: grid; gap: 8px; }
+.eq .tex { font-size: 1.04rem; overflow-x: auto; overflow-y: hidden; }
+.eq .where { font-size: var(--fs-sm); color: var(--ink-2); display: grid; gap: 2px; }
+.eq .where div { display: grid; grid-template-columns: minmax(4.5rem, max-content) 1fr; gap: 10px; }
+.eq .src { font-family: var(--font-data); font-size: var(--fs-xs); color: var(--ink-3); }
+mjx-container[display="true"] { margin: 0.2em 0 !important; }
+mjx-container { color: var(--ink); }
+html:not(.mj-ready) .tex { font-family: var(--font-data); font-size: var(--fs-sm); color: var(--ink-2); white-space: pre-wrap; }
+
+/* ---------- details / FAQ ---------- */
+details { border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); }
+details + details { margin-top: -0.4rem; }
+summary { cursor: pointer; padding: 11px 14px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; font-family: var(--font-data); color: var(--ink-3); }
+details[open] summary::after { content: "–"; }
+details > div { padding: 0 14px 14px; display: grid; gap: 0.55rem; color: var(--ink-2); }
+
+/* ---------- code blocks ---------- */
+.code { position: relative; }
+.code pre { margin: 0; background: var(--bg-3); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow-x: auto; font-family: var(--font-data); font-size: var(--fs-sm); line-height: 1.55; }
+.code button { position: absolute; top: 8px; right: 8px; height: 28px; padding: 0 10px; font-size: var(--fs-xs); }
+
+/* ---------- accuracy bars ---------- */
+.range { position: relative; height: 14px; min-width: 140px; border-radius: 4px; background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 10%); border: 1px solid var(--line); }
+.range i { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; background: var(--accent); }
+.range i.pt { width: 4px; margin-left: -2px; }
+.axis { display: flex; justify-content: space-between; font-family: var(--font-data); font-size: 0.68rem; color: var(--ink-3); margin-top: 2px; }
+
+/* ---------- parameter explorer ---------- */
+.px { display: grid; gap: 10px; }
+.px-bar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 220px); gap: 8px; }
+.px-bar input, .px-bar select { height: 38px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--ink); padding: 0 10px; font: inherit; font-size: var(--fs-sm); min-width: 0; }
+.px-count { font-size: var(--fs-sm); color: var(--ink-3); }
+.px-list { display: grid; gap: 8px; }
+.prm { border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); padding: 10px 12px; display: grid; gap: 4px; }
+.prm header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.prm header code { background: none; padding: 0; font-weight: 500; color: var(--ink); font-size: 0.95rem; }
+.prm header .t { color: var(--ink-2); font-size: var(--fs-sm); }
+.prm header .tags { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.prm p { color: var(--ink-2); font-size: var(--fs-sm); }
+.prm dl { display: flex; flex-wrap: wrap; gap: 2px 16px; margin: 0; font-size: var(--fs-xs); color: var(--ink-3); font-family: var(--font-data); }
+.prm dl b { color: var(--ink); font-weight: 500; }
+.prm .vals { font-size: var(--fs-xs); color: var(--ink-3); font-family: var(--font-data); overflow-wrap: anywhere; }
+
+@media (max-width: 1000px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: fixed; z-index: 25; top: calc(env(safe-area-inset-top, 0px) + var(--bar-h)); left: 0; bottom: 0; width: min(300px, 86vw); height: auto; background: var(--bg-2); box-shadow: var(--shadow); transform: translateX(-102%); transition: transform 0.2s; }
+  .rail.open { transform: none; }
+  .menu-btn { display: inline-flex; }
+  .toplinks .gh { display: none; }
+}
+@media (max-width: 640px) {
+  .brand div span { display: none; }
+  .toplinks .open-sim span { display: none; }
+  .search { max-width: none; }
+  .px-bar { grid-template-columns: minmax(0, 1fr); }
+  .hero h1 { font-size: 1.9rem; }
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+</style>
+
+</head>
+<body>
+<header class="topbar">
+  <button class="btn menu-btn" id="menuBtn" aria-label="Show contents" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg></button>
+  <a class="brand" href="#overview"><img class="logo-img" src="logo.jpg" alt="BRACU DUBURI"><div><span>Simulator documentation</span></div></a>
+  <div class="search">
+    <svg viewBox="0 0 16 16" stroke-width="1.6"><circle cx="7" cy="7" r="4.6"/><path d="M10.5 10.5 14 14"/></svg>
+    <input id="q" type="search" placeholder="Search docs and parameters" autocomplete="off" aria-label="Search the documentation">
+    <div class="search-results" id="qres" hidden></div>
+  </div>
+  <div class="toplinks">
+    <a class="btn primary open-sim" href="https://jarifalam13.github.io/DUBURI_SIM/" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3.5 12 8l-7 4.5z"/></svg><span>Open simulator</span></a>
+    <a class="btn gh" href="https://github.com/jarifalam13/DUBURI_SIM" target="_blank" rel="noopener">Source</a>
+  </div>
+</header>
+
+<div class="shell">
+<nav class="rail" id="rail" aria-label="Contents">
+  <h5>Guide</h5>
+  <a href="#overview">Overview</a>
+  <a href="#quick-start">Quick start</a>
+  <a href="#panels">Panel tour</a>
+  <a href="#flying">Flying and the HUD</a>
+  <a href="#thruster-detection">Thruster auto-detection</a>
+  <a href="#modes">Flight modes</a>
+  <a href="#failsafes">Failsafes</a>
+  <h5>How it works</h5>
+  <a href="#architecture">Architecture</a>
+  <a href="#fossen">Fossen 6-DOF model</a>
+  <a class="sub" href="#kinematics">Kinematics</a>
+  <a class="sub" href="#mass">Mass and added mass</a>
+  <a class="sub" href="#coriolis">Coriolis and Munk</a>
+  <a class="sub" href="#damping">Damping</a>
+  <a class="sub" href="#restoring">Buoyancy and gravity</a>
+  <a class="sub" href="#waves">Water, waves, current</a>
+  <a class="sub" href="#contact">Floor and walls</a>
+  <a class="sub" href="#integration">Integration</a>
+  <a href="#thrusters">Thrusters and battery</a>
+  <a href="#hydro">Added mass and damping</a>
+  <a href="#sensors">Sensors</a>
+  <a href="#control">ArduSub control</a>
+  <a class="sub" href="#pid">PID controllers</a>
+  <a class="sub" href="#attitude">Attitude controller</a>
+  <a class="sub" href="#depth">Depth and position</a>
+  <a class="sub" href="#mixer">Motor mixer</a>
+  <a class="sub" href="#scheduler">Main loop</a>
+  <a href="#autotune">AUTO-TUNE</a>
+  <h5>Reference</h5>
+  <a href="#parameters">Parameters</a>
+  <a href="#accuracy">Accuracy and limits</a>
+  <a href="#presenting">Presenting the simulator</a>
+  <a href="#troubleshooting">Troubleshooting</a>
+  <a href="#development">Development</a>
+</nav>
+
+<main id="main">
+<div class="col">
+
+<!-- ============================== OVERVIEW ============================== -->
+<section class="doc" id="overview">
+  <div class="hero">
+    <img class="hero-logo" src="logo.jpg" alt="BRACU DUBURI">
+    <span class="eyebrow">BRACU DUBURI ROV simulator · ArduSub 4.5.7</span>
+    <h1>Fly the robot <em>before</em> it gets wet.</h1>
+    <p class="lead">DUBURI is a virtual pool that runs in the browser. Give it your ROV's 3D design and your Pixhawk parameter file, and it flies the vehicle with a line-by-line port of the ArduSub 4.5.7 controllers on top of a Fossen 6-DOF hydrodynamic model.</p>
+    <div class="facts" role="list">
+      <div role="listitem"><b>400 Hz</b><span>ArduSub main loop, physics at 800 Hz</span></div>
+      <div role="listitem"><b>6-DOF</b><span>Fossen rigid body + added mass</span></div>
+      <div role="listitem"><b>2708</b><span>ArduSub parameters, 671 simulated</span></div>
+      <div role="listitem"><b>11 modes</b><span>Manual to Auto and Motor Detect</span></div>
+      <div role="listitem"><b>185 tests</b><span>physics, firmware, params, CFD</span></div>
+      <div role="listitem"><b>1 file</b><span>runs in Chrome or Edge, no install</span></div>
+    </div>
+    <div class="cta">
+      <a class="btn primary" href="https://jarifalam13.github.io/DUBURI_SIM/" target="_blank" rel="noopener">Open the simulator</a>
+      <a class="btn" href="#quick-start">Start the guide</a>
+      <a class="btn" href="#fossen">Read the physics</a>
+    </div>
+  </div>
+  <p>Use it to check a thruster layout, catch wrong parameters, tune gains and practise piloting without risking the vehicle. Nothing is installed: the whole simulator is one HTML page (Chrome or Edge with WebGL2).</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>You give it</th><th>It works out</th><th>You get back</th></tr></thead>
+    <tbody>
+      <tr><td>3D design (STL, OBJ, PLY)</td><td>Volume, buoyancy, centre of buoyancy, inertia, thruster positions</td><td>Whether it floats level, which axes it can control</td></tr>
+      <tr><td>Mass and centre of gravity</td><td>Righting moment, natural roll and pitch periods</td><td>Stability before you build</td></tr>
+      <tr><td>Thruster models and directions</td><td>Mixer table, authority per axis, battery draw</td><td>A layout check and a C++ mixer for custom frames</td></tr>
+      <tr><td>Pixhawk <code>.param</code> file</td><td>The same controllers ArduSub runs, with your gains</td><td>Step responses, AUTO-TUNE suggestions, an updated <code>.param</code></td></tr>
+      <tr><td>Pool size, water, waves</td><td>Pressure, density, depth-sensor reading, wave forces</td><td>Realistic depth hold and failsafe behaviour</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================== QUICK START ============================== -->
+<section class="doc" id="quick-start">
+  <div class="head"><span class="eyebrow">Guide</span><h2>Quick start<a class="anchor" href="#quick-start" aria-label="Link to Quick start">#</a></h2>
+  <p class="muted">Nine steps from your CAD file to a tuned <code>.param</code> file. Click any screenshot to enlarge it.</p></div>
+  <ol class="steps">
+    <li class="step"><h3>Open the simulator</h3><div class="body">
+      <p>Open <a href="https://jarifalam13.github.io/DUBURI_SIM/" target="_blank" rel="noopener">jarifalam13.github.io/DUBURI_SIM</a> in Chrome or Edge. The first screen offers <b>Fly the sample first</b> (an 8-thruster ROV already loaded with the DUBURI Pixhawk parameters) or <b>Upload my design</b>.</p>
+      <figure><img src="shots/01-welcome.jpg" alt="Welcome dialog over the pool with Fly the sample first and Upload my design buttons" loading="lazy"><figcaption><b>Welcome.</b> The sample ROV flies with your DUBURI parameter file from the start.</figcaption></figure>
+    </div></li>
+    <li class="step"><h3>Upload your design</h3><div class="body">
+      <p>Click <b>Upload design</b> in the top bar, or drop the file anywhere. In <b>Vehicle</b>, set the file units (Fusion 360 and SolidWorks export in mm), which axis points forward and which points up. Check that the red X arrow in the 3D view points to the bow.</p>
+      <p>If the parts are named (<code>T200_1</code>, <code>Thruster 2</code>…) or the thrusters have ducts, they are found automatically and a custom frame is built from them. Click <b>Accept</b>, <b>Flip</b> a thruster that pushes the wrong way, or <b>Discard</b>.</p>
+      <figure><img src="shots/02-upload-detect.jpg" alt="Vehicle panel with the uploaded file settings and a notice listing 8 detected T200 thrusters" loading="lazy"><figcaption><b>Thruster detection.</b> 8 × T200 found by part name and matched to FRAME_CONFIG 2 (Vectored 6DOF), each with its push direction and confidence.</figcaption></figure>
+    </div></li>
+    <li class="step"><h3>Enter the real mass and centre of gravity</h3><div class="body">
+      <p>Scroll down in <b>Vehicle</b> to <b>Mass and centre of gravity</b>. Enter the mass in air from a scale and the CG from your CAD mass properties. The <b>In the water</b> box then shows whether the vehicle floats or sinks, the distance between centre of buoyancy and CG (GM), and the natural roll and pitch periods. <b>Make neutral</b> sets the mass for neutral buoyancy.</p>
+      <figure><img src="shots/03-vehicle-mass.jpg" alt="Vehicle panel showing mass, centre of gravity, inertia and buoyancy results" loading="lazy"><figcaption><b>Mass, CG and buoyancy.</b> Every hydrostatic number the plant uses is shown here.</figcaption></figure>
+    </div></li>
+    <li class="step"><h3>Set the pool and water</h3><div class="body">
+      <p><b>Pool</b> sets the pool length, width and depth (default 25 × 12 × 4 m), a flat or sloped floor, fresh or sea water, current, turbulence and waves, the depth sensor (Bar02, Bar30 or custom) and the depth rating of your housings. Tick <b>Positioning system present</b> only if the real vehicle has a DVL or USBL: Position Hold, Auto and Guided need it.</p>
+      <figure><img src="shots/12-pool.jpg" alt="Pool and water panel with pool size, water type, current and sensor settings" loading="lazy"><figcaption><b>Pool &amp; water.</b> Pressure, buoyancy and the depth-sensor reading all follow from these settings.</figcaption></figure>
+    </div></li>
+    <li class="step"><h3>Check the frame</h3><div class="body">
+      <p><b>Frame</b> shows every ArduSub <code>FRAME_CONFIG</code> as a card, plus <b>Automatic</b>, which builds the mixer from where your thrusters really are. Under <b>Try it</b>, move a slider: the thrusters that fire light up (orange forward, blue reverse) and the resulting force or torque is printed above the sliders.</p>
+      <figure><img src="shots/08-frame-slider.jpg" alt="Frame panel with the surge slider at 90 percent and the resulting force of 116.7 newtons" loading="lazy"><figcaption><b>Try it.</b> Surge at 90 % gives +116.7 N with this layout. A slider that moves the vehicle the wrong way means a direction or <code>MOT_n_DIRECTION</code> is wrong.</figcaption></figure>
+    </div></li>
+    <li class="step"><h3>Arm and fly</h3><div class="body">
+      <p>Press <kbd>Enter</kbd> to arm. <kbd>W</kbd>/<kbd>S</kbd> forward and back, <kbd>A</kbd>/<kbd>D</kbd> yaw, <kbd>Q</kbd>/<kbd>E</kbd> strafe, <kbd>R</kbd>/<kbd>F</kbd> up and down. Keys <kbd>1</kbd>–<kbd>6</kbd> change mode. A gamepad works too (see <a href="#flying">Flying</a>).</p>
+      <figure><img src="shots/04-flying-hud.jpg" alt="Vehicle armed in Stabilize mode with the HUD showing speed, depth and thruster output" loading="lazy"><figcaption><b>Flying.</b> Heading tape at the top, depth tape on the right, thruster bars bottom left, attitude bottom right.</figcaption></figure>
+    </div></li>
+    <li class="step"><h3>Hold depth and watch the graphs</h3><div class="body">
+      <p>Press <kbd>3</kbd> for Depth Hold and <kbd>G</kbd> for the live graphs. Dashed lines are what ArduSub asks for, solid lines what the vehicle did. <b>Export CSV</b> saves the data.</p>
+      <figure><img src="shots/05-depth-hold-graphs.jpg" alt="Live graphs of roll, pitch, yaw and depth with targets while in Depth Hold" loading="lazy"><figcaption><b>Live graphs.</b> The depth plot shows target, true depth and what the depth sensor reports.</figcaption></figure>
+    </div></li>
+    <li class="step"><h3>Tune</h3><div class="body">
+      <p><b>Tuning</b> lists the ArduSub gains and runs a <b>step test</b> on a fresh copy of the vehicle: rise time, overshoot, settling time and steady error are measured. <b>AUTO-TUNE</b> (top bar) computes added mass and damping for your design and suggests gains; nothing changes until you click Apply.</p>
+      <figure><img src="shots/18-step-test.jpg" alt="Tuning panel with a 45 degree yaw step response and its metrics" loading="lazy"><figcaption><b>Step test.</b> A 45° yaw step: 0.57 s rise time, 10.4 % overshoot.</figcaption></figure>
+    </div></li>
+    <li class="step"><h3>Take it to the vehicle</h3><div class="body">
+      <p>In <b>Params</b>, <b>Save (Mission Planner)</b> or <b>Save (QGC)</b> writes every parameter of your file plus the ones you changed. Load it on the Pixhawk with QGroundControl or Mission Planner and check the changed values before the first dive.</p>
+      <figure><img src="shots/13-params.jpg" alt="Parameters panel with all 2708 ArduSub parameters grouped by prefix" loading="lazy"><figcaption><b>Parameters.</b> 2708 ArduSub 4.5.7 parameters: 671 affect the simulation, the rest are kept exactly and written back.</figcaption></figure>
+    </div></li>
+  </ol>
+</section>
+
+<!-- ============================== PANEL TOUR ============================== -->
+<section class="doc" id="panels">
+  <div class="head"><span class="eyebrow">Guide</span><h2>Panel tour<a class="anchor" href="#panels" aria-label="Link to Panel tour">#</a></h2>
+  <p class="muted">The rail on the left of the simulator opens these panels, in the order you usually need them. Click a card to see the full screenshot.</p></div>
+  <div class="tour" id="tour"></div>
+</section>
+
+<!-- ============================== FLYING ============================== -->
+<section class="doc" id="flying">
+  <div class="head"><span class="eyebrow">Guide</span><h2>Flying and the HUD<a class="anchor" href="#flying" aria-label="Link to Flying">#</a></h2>
+  <p class="muted">Flight keys work whenever no text field has the focus.</p></div>
+  <div class="chips" role="tablist" aria-label="Input device">
+    <button class="chip" role="tab" aria-pressed="true" data-tab="kb" id="tab-kb">Keyboard</button>
+    <button class="chip" role="tab" aria-pressed="false" data-tab="gp" id="tab-gp">Gamepad</button>
+    <button class="chip" role="tab" aria-pressed="false" data-tab="hud" id="tab-hud">HUD readouts</button>
+  </div>
+  <div class="table-wrap" data-pane="kb"><table><thead><tr><th>Key</th><th>Action</th></tr></thead><tbody>
+    <tr><td><kbd>W</kbd> <kbd>S</kbd></td><td>Forward / back</td></tr>
+    <tr><td><kbd>A</kbd> <kbd>D</kbd></td><td>Yaw left / right</td></tr>
+    <tr><td><kbd>Q</kbd> <kbd>E</kbd></td><td>Strafe left / right</td></tr>
+    <tr><td><kbd>R</kbd> <kbd>F</kbd> (<kbd>Space</kbd> <kbd>C</kbd>)</td><td>Ascend / descend</td></tr>
+    <tr><td><kbd>I</kbd> <kbd>K</kbd> · <kbd>J</kbd> <kbd>L</kbd></td><td>Pitch · roll input (vehicles with 6-DOF control)</td></tr>
+    <tr><td><kbd>Enter</kbd></td><td>Arm / disarm</td></tr>
+    <tr><td><kbd>1</kbd>…<kbd>6</kbd></td><td>Manual, Stabilize, Depth Hold, Acro, Position Hold, Surface (other modes from the mode menu)</td></tr>
+    <tr><td><kbd>+</kbd> <kbd>−</kbd></td><td>Pilot gain up / down (JS_GAIN_STEPS)</td></tr>
+    <tr><td><kbd>V</kbd></td><td>Next camera (Chase, Orbit, Camera, Top, Free)</td></tr>
+    <tr><td><kbd>G</kbd></td><td>Live graphs</td></tr>
+    <tr><td><kbd>P</kbd></td><td>Pause</td></tr>
+    <tr><td><kbd>Backspace</kbd></td><td>Reset the vehicle to its start position</td></tr>
+    <tr><td><kbd>Shift</kbd></td><td>Presses the joystick button set to shift (BTNn_FUNCTION = 1)</td></tr>
+  </tbody></table></div>
+  <div data-pane="gp" hidden>
+    <div class="table-wrap"><table><thead><tr><th>Control</th><th>Action</th></tr></thead><tbody>
+      <tr><td>Left stick</td><td>Up / down (throttle) and yaw</td></tr>
+      <tr><td>Right stick</td><td>Forward and lateral</td></tr>
+      <tr><td>Triggers</td><td>Ascend / descend, or pitch / roll when the matching button function is held</td></tr>
+      <tr><td>Buttons</td><td>Follow your <code>BTNn_FUNCTION</code> / <code>BTNn_SFUNCTION</code> parameters exactly as ArduSub does (QGC button numbering); hold the shift button for the second function</td></tr>
+    </tbody></table></div>
+    <p class="small muted">The Controller panel lists every button, its function with and without shift, lights, camera mount, relays, servo outputs and RC1–16. If the gamepad is not detected, press any button once; some embedded browser views hide controllers.</p>
+  </div>
+  <div data-pane="hud" hidden>
+    <div class="table-wrap"><table><thead><tr><th>Readout</th><th>Meaning</th></tr></thead><tbody>
+      <tr><td>SURGE · SWAY · HEAVE</td><td>Body-frame velocity, m/s (forward, right, down)</td></tr>
+      <tr><td>NORTH · EAST</td><td>Position in the pool, m from the centre</td></tr>
+      <tr><td>TO FLOOR</td><td>Distance from the vehicle to the pool floor, m</td></tr>
+      <tr><td>PRESSURE · SENSOR</td><td>Absolute pressure at the depth sensor, bar, and the depth ArduSub computes from it, m</td></tr>
+      <tr><td>Depth tape</td><td>ArduSub's depth estimate in the box, with the true CG depth under it and the target depth marker</td></tr>
+      <tr><td>GAIN · LIGHTS</td><td>Pilot gain and light brightness, %</td></tr>
+      <tr><td>BATTERY</td><td>Voltage, current, mAh used, % left (shows "no monitor" when <code>BATT_MONITOR</code> = 0)</td></tr>
+      <tr><td>RANGEFINDER · INT TEMP</td><td>Downward rangefinder distance, internal temperature</td></tr>
+      <tr><td>GCS LINK</td><td>Ground-station link state; the topbar toggle drops it to test the GCS failsafe</td></tr>
+      <tr><td>THRUSTERS</td><td>One bar per motor output: orange forward, blue reverse</td></tr>
+      <tr><td>Banners</td><td>Active failsafes and PreArm failures, as ArduSub reports them</td></tr>
+    </tbody></table></div>
+  </div>
+  <figure class="wide"><img src="shots/24-top-view.jpg" alt="Top camera view of the pool and vehicle" loading="lazy"><figcaption><b>Top view.</b> In Guided mode a click on the water sends the vehicle there at its current depth.</figcaption></figure>
+</section>
+
+<!-- ============================== THRUSTER DETECTION ============================== -->
+<section class="doc" id="thruster-detection">
+  <div class="head"><span class="eyebrow">Guide</span><h2>Thruster auto-detection<a class="anchor" href="#thruster-detection" aria-label="Link to Thruster auto-detection">#</a></h2>
+  <p class="muted">Runs after every upload, and from <b>Find thrusters in my design</b> in Vehicle or Frame.</p></div>
+  <div class="table-wrap"><table><thead><tr><th>Format</th><th>Part names kept</th><th>How thrusters are found</th></tr></thead><tbody>
+    <tr><td><b>OBJ</b> (recommended)</td><td><span class="pill yes dot">yes</span> objects and groups</td><td>By name, then by shape</td></tr>
+    <tr><td>ASCII STL, multi-body</td><td><span class="pill yes dot">yes</span> one <code>solid</code> per body</td><td>By name, then by shape</td></tr>
+    <tr><td>Binary STL</td><td><span class="pill no dot">no</span></td><td>By shape only</td></tr>
+    <tr><td>PLY</td><td><span class="pill no dot">no</span></td><td>By shape only</td></tr>
+  </tbody></table></div>
+  <ol>
+    <li><b>Names.</b> Parts called <code>T200_1</code>, <code>Thruster 2</code>, <code>Assembly/T200 (4)/Nozzle</code> are recognised; the number becomes the motor number. Mounts, brackets and screws are skipped.</li>
+    <li><b>Shape.</b> The mesh is split into connected parts; each is tested as a surface of revolution. A duct needs a complete outer and inner wall. Outside diameter ≈ 100 mm → T200, ≈ 140 mm → T500, otherwise a generic thruster sized from the inside diameter. Pipes, rods and housings are rejected.</li>
+    <li><b>Direction and order.</b> Geometry gives the axis but not which way it pushes, so each thruster's force and torque is matched against the rows of your <code>FRAME_CONFIG</code> table (with an optimal one-to-one assignment). That picks the push direction and the motor number. Spin direction follows <code>MOT_n_DIRECTION</code>.</li>
+  </ol>
+  <div class="note"><b>From Fusion 360 (.f3z)</b><p>The browser cannot read Fusion archives. Open the design in Fusion, rename the thruster components <code>T200_1</code> … <code>T200_8</code> to match your motor outputs, then <b>File → Export → OBJ</b> (or <b>Utilities → 3D Print</b> → OBJ). Upload with units = mm.</p></div>
+  <p class="small muted">Typical designs take 50–90 ms; a 370 000-triangle mesh about 0.45 s. A short hollow housing 85–115 mm across can look like a T200: check the list and discard it.</p>
+</section>
+
+<!-- ============================== MODES ============================== -->
+<section class="doc" id="modes">
+  <div class="head"><span class="eyebrow">Guide</span><h2>Flight modes<a class="anchor" href="#modes" aria-label="Link to Flight modes">#</a></h2>
+  <p class="muted">The same entry rules as ArduSub 4.5.7 (<code>ArduSub/mode.h</code>): a mode that needs position is refused without a position estimate, and leaving a manual-throttle mode needs a working depth sensor.</p></div>
+  <div class="chips" id="modeFilter" aria-label="Filter modes">
+    <button class="chip" aria-pressed="true" data-f="all">All modes</button>
+    <button class="chip" aria-pressed="false" data-f="nopos">Work without a DVL</button>
+    <button class="chip" aria-pressed="false" data-f="nodepth">Work without a depth sensor</button>
+  </div>
+  <div class="table-wrap"><table id="modeTable"><thead><tr><th>Key</th><th>Mode</th><th class="num">No.</th><th>Position</th><th>Depth sensor</th><th>What it does</th></tr></thead><tbody></tbody></table></div>
+  <p class="small muted">Surface needs a position estimate in ArduSub 4.5.7, so a leak or GCS failsafe set to "surface" only warns on a vehicle without DVL/USBL. The simulator reproduces this.</p>
+</section>
+
+<!-- ============================== FAILSAFES ============================== -->
+<section class="doc" id="failsafes">
+  <div class="head"><span class="eyebrow">Guide</span><h2>Failsafes<a class="anchor" href="#failsafes" aria-label="Link to Failsafes">#</a></h2>
+  <p class="muted">Ported from <code>ArduSub/failsafe.cpp</code>. The last column is the value in the DUBURI Pixhawk file.</p></div>
+  <div class="table-wrap"><table><thead><tr><th>Failsafe</th><th>Triggers when</th><th>Parameter and actions</th><th>ArduSub default</th><th>DUBURI file</th></tr></thead><tbody>
+    <tr><td><b>Pilot input</b></td><td>No joystick message for <code>FS_PILOT_TIMEOUT</code> (3 s)</td><td><code>FS_PILOT_INPUT</code>: 0 off · 1 warn · 2 disarm</td><td>2 disarm</td><td><span class="pill off dot">0 off</span></td></tr>
+    <tr><td><b>GCS heartbeat</b></td><td>No ground-station heartbeat for 2.5 s</td><td><code>FS_GCS_ENABLE</code>: 0 off · 1 warn · 2 disarm · 3 depth hold · 4 surface</td><td>2 disarm</td><td><span class="pill off dot">0 off</span></td></tr>
+    <tr><td><b>Leak</b></td><td>A leak probe reads wet (housing past its rating)</td><td><code>FS_LEAK_ENABLE</code>: 0 off · 1 warn · 2 surface</td><td>1 warn</td><td><span class="pill off dot">0 off</span></td></tr>
+    <tr><td><b>Internal pressure</b></td><td>Pressure inside the housing above <code>FS_PRESS_MAX</code> (105 000 Pa)</td><td><code>FS_PRESS_ENABLE</code>: 0 off · 1 warn</td><td>0 off</td><td>0 off</td></tr>
+    <tr><td><b>Internal temperature</b></td><td>Above <code>FS_TEMP_MAX</code> (62 °C)</td><td><code>FS_TEMP_ENABLE</code>: 0 off · 1 warn</td><td>0 off</td><td>0 off</td></tr>
+    <tr><td><b>Battery</b></td><td>Voltage below <code>BATT_LOW_VOLT</code> for <code>BATT_LOW_TIMER</code> (10 s), or mAh used past <code>BATT_LOW_MAH</code>; same for critical</td><td><code>BATT_FS_LOW_ACT</code>, <code>BATT_FS_CRT_ACT</code>: 0 none · 2 disarm · 3 surface</td><td>0 none</td><td>no monitor (<code>BATT_MONITOR</code> 0)</td></tr>
+    <tr><td><b>EKF</b></td><td>Estimator variance stays above <code>FS_EKF_THRESH</code> (0.8)</td><td><code>FS_EKF_ACTION</code>: 0 off · 1 warn · 2 disarm</td><td>0 off</td><td>0 off</td></tr>
+    <tr><td><b>Crash</b></td><td>Attitude error above 30° for 2 s</td><td><code>FS_CRASH_CHECK</code>: 0 off · 1 warn · 2 disarm</td><td>0 off</td><td>0 off</td></tr>
+    <tr><td><b>Depth sensor</b></td><td>The depth sensor stops reporting while a depth mode is active</td><td>Always on: switches to Manual</td><td>on</td><td>on</td></tr>
+    <tr><td><b>Terrain</b></td><td>An Auto/Guided target that follows the bottom with no healthy rangefinder for 1 s</td><td><code>FS_TERRAIN_ENAB</code>: 0 disarm · 1 hold position · 2 surface</td><td>0 disarm</td><td>0 disarm</td></tr>
+  </tbody></table></div>
+  <div class="note warn"><b>The DUBURI file turns off three failsafes ArduSub enables by default</b><p>Pilot input (default disarm), GCS heartbeat (default disarm) and leak (default warn) are all 0. Try each one in the simulator first: set the parameter in Params, then drop the joystick or click <b>GCS link</b> in the top bar. With <code>FS_GCS_ENABLE</code> = 3 the vehicle switches to Depth Hold about 2.5 s after the link drops.</p></div>
+</section>
+
+<!-- ============================== ARCHITECTURE ============================== -->
+<section class="doc" id="architecture">
+  <div class="head"><span class="eyebrow">How it works</span><h2>Architecture<a class="anchor" href="#architecture" aria-label="Link to Architecture">#</a></h2>
+  <p class="muted">Two parts: a set-up pipeline that turns your design into a hydrodynamic model once, and a closed loop that runs 400 times per simulated second. Click a box for details, or trace one loop.</p></div>
+  <div class="diagram wide">
+    <div class="controls"><span class="small muted">Firmware tick 2.5 ms · physics step 1.25 ms (2 per tick)</span><button class="btn" id="trace">Trace one loop</button></div>
+    <div class="svg-wrap">
+    <svg viewBox="0 0 1000 560" role="group" aria-label="Simulator architecture">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="ahl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead loop" d="M0 0L10 5L0 10z"/></marker>
+      </defs>
+      <rect class="band" x="8" y="10" width="984" height="150" rx="12"/>
+      <text class="band-label" x="24" y="34">SET-UP · ONCE PER DESIGN</text>
+      <rect class="band" x="8" y="180" width="984" height="370" rx="12"/>
+      <text class="band-label" x="24" y="204">RUNTIME LOOP · 400 HZ</text>
+      <!-- setup pipeline -->
+      <g class="node" data-id="design" tabindex="0" role="button" aria-label="Design file"><rect x="24" y="52" width="160" height="80"/><text x="40" y="84">Design file</text><text class="s" x="40" y="104">STL · OBJ · PLY</text><text class="s" x="40" y="120">units, axes, origin</text></g>
+      <g class="node" data-id="geo" tabindex="0" role="button" aria-label="Geometry"><rect x="218" y="52" width="170" height="80"/><text x="234" y="84">Geometry</text><text class="s" x="234" y="104">voxels, volume, CB</text><text class="s" x="234" y="120">inertia, contact points</text></g>
+      <g class="node" data-id="detect" tabindex="0" role="button" aria-label="Thrusters and allocation"><rect x="422" y="52" width="170" height="80"/><text x="438" y="84">Thrusters</text><text class="s" x="438" y="104">auto-detect, allocation</text><text class="s" x="438" y="120">mixer table, authority</text></g>
+      <g class="node" data-id="hydro" tabindex="0" role="button" aria-label="Hydrodynamics"><rect x="626" y="52" width="160" height="80"/><text x="642" y="84">Hydrodynamics</text><text class="s" x="642" y="104">BEM added mass</text><text class="s" x="642" y="120">CFD damping</text></g>
+      <g class="node" data-id="model" tabindex="0" role="button" aria-label="Plant model"><rect x="820" y="52" width="156" height="80"/><text x="836" y="84">Plant model</text><text class="s" x="836" y="104">M, C, D, g, τ</text><text class="s" x="836" y="120">about the CG</text></g>
+      <path class="wire" d="M184 92H214" marker-end="url(#ah)"/><path class="wire" d="M388 92H418" marker-end="url(#ah)"/><path class="wire" d="M592 92H622" marker-end="url(#ah)"/><path class="wire" d="M786 92H816" marker-end="url(#ah)"/>
+      <path class="wire" d="M898 132V300H828" marker-end="url(#ah)" stroke-dasharray="5 5"/>
+      <!-- runtime loop -->
+      <g class="node" data-id="pilot" tabindex="0" role="button" aria-label="Pilot input"><rect x="24" y="230" width="150" height="76"/><text x="40" y="261">Pilot</text><text class="s" x="40" y="281">keyboard · gamepad</text><text class="s" x="40" y="296">MANUAL_CONTROL</text></g>
+      <g class="node" data-id="fw" tabindex="0" role="button" aria-label="ArduSub firmware"><rect x="214" y="222" width="230" height="92"/><text x="232" y="254">ArduSub 4.5.7</text><text class="s" x="232" y="274">modes · attitude · depth/XY</text><text class="s" x="232" y="290">mixer · failsafes · arming</text><text class="s" x="232" y="305">AP_Scheduler task table</text></g>
+      <g class="node" data-id="pwm" tabindex="0" role="button" aria-label="Servo outputs"><rect x="486" y="230" width="140" height="76"/><text x="502" y="261">Outputs</text><text class="s" x="502" y="281">PWM per SERVOn</text><text class="s" x="502" y="296">1100–1900 µs</text></g>
+      <g class="node" data-id="thr" tabindex="0" role="button" aria-label="Thrusters and battery"><rect x="670" y="230" width="158" height="76"/><text x="686" y="261">Thrusters</text><text class="s" x="686" y="281">curve · rotor lag</text><text class="s" x="686" y="296">battery voltage</text></g>
+      <g class="node" data-id="plant" tabindex="0" role="button" aria-label="6-DOF plant"><rect x="670" y="396" width="200" height="92"/><text x="686" y="428">6-DOF plant</text><text class="s" x="686" y="448">Fossen M ν̇ + C + D + g = τ</text><text class="s" x="686" y="464">RK4 · 800 Hz</text><text class="s" x="686" y="479">floor and wall contact</text></g>
+      <g class="node" data-id="env" tabindex="0" role="button" aria-label="Environment"><rect x="880" y="320" width="100" height="92"/><text x="892" y="352">Water</text><text class="s" x="892" y="372">pool, EOS-80</text><text class="s" x="892" y="388">waves</text><text class="s" x="892" y="403">current</text></g>
+      <g class="node" data-id="sens" tabindex="0" role="button" aria-label="Sensors"><rect x="372" y="396" width="230" height="92"/><text x="388" y="428">Sensors</text><text class="s" x="388" y="448">IMU · depth · compass</text><text class="s" x="388" y="464">rangefinder · leak · temp</text><text class="s" x="388" y="479">battery monitor · estimator</text></g>
+      <g class="node" data-id="out" tabindex="0" role="button" aria-label="Display and logs"><rect x="24" y="404" width="190" height="76"/><text x="40" y="435">You see</text><text class="s" x="40" y="455">3D view · HUD · graphs</text><text class="s" x="40" y="470">CSV logs · .param</text></g>
+      <path class="wire loop" d="M174 268H210" marker-end="url(#ahl)"/>
+      <path class="wire loop" d="M444 268H482" marker-end="url(#ahl)"/>
+      <path class="wire loop" d="M626 268H666" marker-end="url(#ahl)"/>
+      <path class="wire loop" d="M749 306V392" marker-end="url(#ahl)"/>
+      <path class="wire" d="M930 412V442H874" marker-end="url(#ah)"/>
+      <path class="wire loop" d="M670 442H606" marker-end="url(#ahl)"/>
+      <path class="wire loop" d="M450 396V318" marker-end="url(#ahl)"/>
+      <path class="wire" d="M372 442H218" marker-end="url(#ah)"/>
+    </svg>
+    </div>
+    <div class="detail" id="archDetail" aria-live="polite"></div>
+  </div>
+</section>
+
+<!-- ============================== FOSSEN ============================== -->
+<section class="doc" id="fossen">
+  <div class="head"><span class="eyebrow">How it works</span><h2>The Fossen 6-DOF model<a class="anchor" href="#fossen" aria-label="Link to Fossen">#</a></h2>
+  <p class="muted">The equations of motion used in marine robotics, from Thor I. Fossen, <i>Handbook of Marine Craft Hydrodynamics and Motion Control</i> (Wiley, 2011/2021). Implemented in <code>src/physics/body.js</code>.</p></div>
+  <p>A rigid body in water can move in six ways at once: three translations and three rotations. Those are the six <b>degrees of freedom</b> (DOF). Fossen's model is Newton's second law written for all six together, with the extra forces water adds: the water the vehicle carries along when it accelerates, the drag, and buoyancy.</p>
+  <div class="table-wrap"><table><thead><tr><th>DOF</th><th>Motion</th><th>Velocity</th><th>Force / moment</th><th>Position / angle</th></tr></thead><tbody>
+    <tr><td>1</td><td>Surge (forward)</td><td>\(u\)</td><td>\(X\)</td><td>\(x\) north</td></tr>
+    <tr><td>2</td><td>Sway (right)</td><td>\(v\)</td><td>\(Y\)</td><td>\(y\) east</td></tr>
+    <tr><td>3</td><td>Heave (down)</td><td>\(w\)</td><td>\(Z\)</td><td>\(z\) depth</td></tr>
+    <tr><td>4</td><td>Roll</td><td>\(p\)</td><td>\(K\)</td><td>\(\phi\)</td></tr>
+    <tr><td>5</td><td>Pitch</td><td>\(q\)</td><td>\(M\)</td><td>\(\theta\)</td></tr>
+    <tr><td>6</td><td>Yaw</td><td>\(r\)</td><td>\(N\)</td><td>\(\psi\)</td></tr>
+  </tbody></table></div>
+  <p class="small muted">Frames: world North-East-Down with the origin at the still-water surface in the middle of the pool; body Forward-Right-Down with the origin at the centre of gravity (CG). Positive roll is right side down, positive pitch nose up, positive yaw nose right (ArduPilot convention).</p>
+  <div class="eq"><div class="tex">\[ \underbrace{M\,\dot{\nu}}_{\text{inertia}} + \underbrace{C(\nu_r)\,\nu_r}_{\text{Coriolis, Munk}} + \underbrace{D(\nu_r)\,\nu_r}_{\text{drag}} + \underbrace{g(\eta)}_{\text{weight, buoyancy}} = \underbrace{\tau}_{\text{thrusters, contact, waves}} \qquad \dot{\eta} = J(\eta)\,\nu \]</div>
+  <div class="where">
+    <div><span>\(\eta\)</span><span>position and attitude in the world frame (here a position and a unit quaternion)</span></div>
+    <div><span>\(\nu\)</span><span>body velocities \([u,v,w,p,q,r]\); \(\nu_r\) is the velocity relative to the water</span></div>
+    <div><span>\(M\)</span><span>6×6 inertia: the vehicle's own mass and inertia plus the <b>added mass</b> of water it pushes around</span></div>
+    <div><span>\(C\)</span><span>forces that appear when the vehicle moves and turns at the same time, including the Munk moment that turns a moving body broadside</span></div>
+    <div><span>\(D\)</span><span>water resistance, a linear part (slow speeds) and a quadratic part (\(\propto\) speed²)</span></div>
+    <div><span>\(g\)</span><span>weight at the CG and buoyancy at the centre of buoyancy (CB): their offset is the righting moment</span></div>
+  </div></div>
+  <p>The code solves one linear system per evaluation. Everything except the inertia term is moved to the right-hand side:</p>
+  <div class="eq"><div class="tex">\[ \left(M_{RB}+M_F+M_{A,e}\right)\dot{\nu} = \tau_{\text{grav}}+\tau_B+\tau_{FK}+\tau_D - C_{RB}(\nu)\nu - C_F(\nu)\nu - C_A(\nu_r)\nu_r + \tau_{\text{thr}}+\tau_c \]</div>
+  <div class="where">
+    <div><span>\(M_F,\ C_F\)</span><span>water that has flooded a leaking housing, a point mass at the CB</span></div>
+    <div><span>\(\tau_{FK}\)</span><span>Froude–Krylov force from accelerating water (waves, gusts)</span></div>
+    <div><span>\(\tau_c\)</span><span>contact with the pool floor and walls</span></div>
+  </div>
+  <div class="src">body.js:1-4, 223-442 · the 6×6 matrix is inverted by Gauss–Jordan with partial pivoting (body.js:25-43)</div></div>
+  <p>State vector, 13 numbers: \(y=[x,y,z,\ q_w,q_x,q_y,q_z,\ u,v,w,\ p,q,r]\).</p>
+
+  <h3 id="kinematics">Kinematics: from body velocity to motion in the pool</h3>
+  <p>Position changes with the body velocity rotated into the world frame. Attitude is a unit quaternion (no gimbal lock), turned into roll, pitch and yaw only for display, with ArduPilot's 3-2-1 order.</p>
+  <div class="eq"><div class="tex">\[ \dot{p}^n = R(q)\begin{bmatrix}u\\v\\w\end{bmatrix},\qquad \dot{q}=\tfrac12\,q\otimes\begin{bmatrix}0\\ \omega\end{bmatrix},\qquad \omega=[p,q,r]^\top \]</div>
+  <div class="tex">\[ R(q)=\begin{bmatrix}1-2(q_y^2+q_z^2) &amp; 2(q_xq_y-q_wq_z) &amp; 2(q_xq_z+q_wq_y)\\ 2(q_xq_y+q_wq_z) &amp; 1-2(q_x^2+q_z^2) &amp; 2(q_yq_z-q_wq_x)\\ 2(q_xq_z-q_wq_y) &amp; 2(q_yq_z+q_wq_x) &amp; 1-2(q_x^2+q_y^2)\end{bmatrix} \]</div>
+  <div class="src">core/math.js:140-148, body.js:444-450</div></div>
+  <p>Water velocity (current, turbulence, wave orbits) is rotated into the body frame, and only the linear part is made relative; the water is not rotating.</p>
+  <div class="eq"><div class="tex">\[ v_c^b = R^\top v_f^n(x,y,z),\qquad \nu_r=[\,u-u_c,\ v-v_c,\ w-w_c,\ p,\ q,\ r\,]^\top \]</div><div class="src">body.js:232-236</div></div>
+
+  <h3 id="mass">Mass and added mass</h3>
+  <p>Because the body origin is the CG, the rigid-body inertia is block-diagonal. When the vehicle accelerates it also has to accelerate some water: that is the <b>added mass</b> \(M_A\), a full 6×6 matrix computed by the panel method (see <a href="#hydro">Added mass and damping</a>). It shrinks with the submerged fraction \(\sigma\) at the surface and grows near the floor, walls and surface (image effect).</p>
+  <div class="eq"><div class="tex">\[ M_{RB}=\begin{bmatrix} m I_3 &amp; 0\\ 0 &amp; I_g\end{bmatrix},\qquad M_{A,e}=\sigma\,S_f\,M_A\,S_f,\qquad S_f=\operatorname{diag}\!\left(\sqrt{f_1},\sqrt{f_2},\sqrt{f_3},1,1,1\right) \]</div>
+  <div class="tex">\[ f_i \leftarrow f_i\left(1+\begin{cases}\tfrac38\,r^3 &amp; i=\text{axis normal to the nearby plane}\\[2pt] \tfrac3{16}\,r^3 &amp; \text{other axes}\end{cases}\right),\qquad r=\frac{a_{eq}}{\max(h,a_{eq})},\quad a_{eq}=\sqrt[3]{\tfrac{3V}{4\pi}} \]</div>
+  <div class="tex">\[ M_F=m_f\begin{bmatrix} I_3 &amp; -S(r_b)\\ S(r_b) &amp; -S(r_b)^2\end{bmatrix},\qquad m_f=\rho\,V_{\text{flood}} \]</div>
+  <div class="where">
+    <div><span>\(h\)</span><span>distance from the CG to the floor, the surface (treated as a rigid lid) or a wall</span></div>
+    <div><span>\(S(a)\)</span><span>skew matrix, \(S(a)b=a\times b\); \(r_b\) is the CB relative to the CG</span></div>
+  </div>
+  <div class="src">body.js:64-67, 95-138 · M is rebuilt only when σ, an image factor or the flooded mass changes by more than 0.2 %</div></div>
+
+  <h3 id="coriolis">Coriolis, centripetal and Munk terms</h3>
+  <p>A body that moves and rotates at once feels forces that do no work but redirect momentum. For the water this is the <b>Munk moment</b>: an elongated hull moving at an angle is turned broadside, which is why ROVs need yaw control at speed.</p>
+  <div class="eq"><div class="tex">\[ C_{RB}(\nu)\nu=\begin{bmatrix} m\,\omega\times v\\ \omega\times(I_g\,\omega)\end{bmatrix},\qquad C_A(\nu_r)\nu_r=\begin{bmatrix}\omega\times p_t\\ v_r\times p_t+\omega\times p_r\end{bmatrix} \]</div>
+  <div class="tex">\[ p_t=A_{11}v_r+A_{12}\,\omega,\qquad p_r=A_{21}v_r+A_{22}\,\omega \qquad \left(M_{A,e}=\begin{bmatrix}A_{11}&amp;A_{12}\\A_{21}&amp;A_{22}\end{bmatrix}\right) \]</div>
+  <div class="src">body.js:327-363 · this is Fossen's \(C_A=\begin{bmatrix}0&amp;-S(p_t)\\-S(p_t)&amp;-S(p_r)\end{bmatrix}\)</div></div>
+
+  <h3 id="damping">Damping</h3>
+  <p>Fully coupled 6×6 linear and quadratic matrices. The linear part dominates at low speed, the quadratic part (form drag, \(\tfrac12\rho C_d A v|v|\)) at higher speed. Damping fades as the vehicle leaves the water, and grows near the surface where it makes waves.</p>
+  <div class="eq"><div class="tex">\[ \tau_{D,i}=-s_d\,\beta_i\sum_{j=1}^{6}\Big(D_{L,ij}\,\nu_{r,j}+D_{Q,ij}\,|\nu_{r,j}|\,\nu_{r,j}\Big),\qquad s_d=\max(\sigma,0.02),\quad \beta_i=\begin{cases}1+0.6\cdot 4\sigma(1-\sigma) &amp; i\le 3\\ 1 &amp; i&gt;3\end{cases} \]</div><div class="src">body.js:312-325 · surface wave-making factor 0.6 (environment.js:32)</div></div>
+
+  <h3 id="restoring">Buoyancy and gravity</h3>
+  <p>Weight acts at the CG, so it never makes a moment. Buoyancy acts at the CB; when the CB is above the CG the pair makes the righting moment that keeps the vehicle level. Water gets denser with depth and the hull can compress, so buoyancy changes slightly with depth. At the surface the hull is cut into volume elements, each partly submerged under the local wave height.</p>
+  <div class="eq"><div class="tex">\[ f_G^b = m g\,R^\top e_3,\qquad b_s=\frac{\rho(p_g)}{\rho_0}\,\max\!\left(0.5,\ 1-\beta p_g\right) \]</div>
+  <div class="tex">\[ \text{submerged: } f_B^b=-\rho_0 g V b_s\,R^\top e_3,\quad m_B=r_b\times f_B^b \qquad \text{at the surface: } \phi_e=\operatorname{clamp}\!\left(\frac{d_e+h_{z,e}}{2h_{z,e}},0,1\right),\ \ \sigma=\frac{\sum_e v_e\phi_e}{V} \]</div>
+  <div class="where">
+    <div><span>\(p_g\)</span><span>gauge pressure at the CG depth; \(\beta\) hull compressibility [1/Pa]</span></div>
+    <div><span>\(d_e,\ h_{z,e}\)</span><span>depth of element \(e\) below the local wave surface, and its vertical half-height</span></div>
+  </div>
+  <div class="src">body.js:243-288 · natural roll period shown in Vehicle: \(T_{roll}=2\pi\sqrt{(I_{xx}+A_{44})/(\rho g V\,GM)}\)</div></div>
+  <p>A housing past its depth rating leaks through an orifice against the air inside it, compressed by Boyle's law; the flooded water adds weight and mass and wets the leak probe:</p>
+  <div class="eq"><div class="tex">\[ p_{in}=\frac{p_0V_a}{V_a-V_f},\qquad \dot V_f=0.62\,A_{\text{leak}}\sqrt{\frac{2\,(p_{out}-p_{in})}{\rho_0}} \]</div><div class="src">body.js:195-213</div></div>
+
+  <h3 id="waves">Water, pressure, waves and current</h3>
+  <p>Density comes from temperature and salinity (Tanaka 2001 for fresh water plus the UNESCO EOS-80 salt term), viscosity from Vogel's equation. Pressure is integrated down the water column with a compressible equation of state, so a Bar30 reads what it would in a real pool.</p>
+  <div class="eq"><div class="tex">\[ \frac{dp_g}{dz}=g\,\rho(p_g),\qquad \rho(p_g)=\frac{\rho_0}{1-\bar p/K(S,T,\bar p)},\qquad p_{abs}=p_{atm}+p_g \]</div><div class="src">environment.js:141-174, water.js:19-43 · K is the EOS-80 secant bulk modulus</div></div>
+  <p>Waves are linear (Airy) waves over finite depth. The wavenumber solves the dispersion relation by Newton's method; particle velocity and acceleration decay with depth.</p>
+  <div class="eq"><div class="tex">\[ \omega^2=g\,k\tanh(kh),\qquad \eta=A\cos\varphi,\qquad \varphi=k(x\cos\beta+y\sin\beta)-\omega t \]</div>
+  <div class="tex">\[ u=A\omega\frac{\cosh k(h-z)}{\sinh kh}\cos\varphi,\qquad w=-A\omega\frac{\sinh k(h-z)}{\sinh kh}\sin\varphi \]</div>
+  <div class="where"><div><span>\(A,\ T_w,\ \beta\)</span><span>wave amplitude, period \(2\pi/\omega\), heading (Pool &amp; water); off by default</span></div></div>
+  <div class="src">environment.js:101-236</div></div>
+  <p>Accelerating water pushes the vehicle even when it is still: the Froude–Krylov force plus the added-mass reaction. Without it a neutral vehicle would not follow the waves.</p>
+  <div class="eq"><div class="tex">\[ \tau_{FK}=M_{A,e}[:,1{:}3]\;\dot{\nu}_c+\begin{bmatrix}F_{FK}\\ r_b\times F_{FK}\end{bmatrix},\qquad F_{FK}=\rho_0 V b_s\,a_f^b,\qquad \dot{\nu}_c=a_f^b-\omega\times v_c^b \]</div><div class="src">body.js:294-309 · near the surface only the horizontal part is applied</div></div>
+  <p>Turbulence is a first-order Gauss–Markov gust, then smoothed so it can be differentiated:</p>
+  <div class="eq"><div class="tex">\[ x_{k+1}=a\,x_k+\sigma_t\sqrt{1-a^2}\;\xi_k,\qquad a=e^{-\Delta t/\tau},\quad \xi\sim\mathcal N(0,1) \]</div><div class="src">core/rng.js:40-56, environment.js:177-188 · vertical intensity is half the horizontal</div></div>
+
+  <h3 id="contact">Floor and walls</h3>
+  <p>Contact points are the extreme corners of the voxelised hull in 26 directions. Each one is tested against the floor (flat or sloped) and the four walls separately. A spring–damper pushes it out with Coulomb friction; the gains are capped from the vehicle's mass and the step size so the integration stays stable for a 2 kg or a 30 kg vehicle.</p>
+  <div class="eq"><div class="tex">\[ F_n=k\,\delta-c\,(V\cdot n)\quad(\delta&gt;0,\ F_n&gt;0),\qquad F_t=-\mu F_n\min\!\left(1,\frac{|v_t|}{v_{reg}}\right)\frac{v_t}{|v_t|} \]</div>
+  <div class="tex">\[ k=\min\!\left(k_{user},\ m_{pt}\,\omega_c^2\right),\quad \omega_c=\frac{0.5}{\Delta t},\qquad c\le\max\!\left(1.4\sqrt{k\,m_{pt}},\ 0.9\,\frac{m_{pt}}{\Delta t}\right) \]</div>
+  <div class="src">body.js:140-163, 390-433 · defaults k = 30 000 N/m, c = 900 N·s/m, μ = 0.5</div></div>
+
+  <h3 id="integration">Integration</h3>
+  <p>Each 1.25 ms physics step: thrusters, battery and flooding are advanced once; then classic 4th-order Runge–Kutta integrates the state, split into more sub-steps when damping would make it stiff; the quaternion is renormalised after each.</p>
+  <div class="eq"><div class="tex">\[ y_{k+1}=y_k+\tfrac{h}{6}\left(k_1+2k_2+2k_3+k_4\right),\qquad q\leftarrow\frac{q}{\lVert q\rVert} \]</div>
+  <div class="tex">\[ n=\min\!\left(64,\ \max\!\left(1,\ \left\lceil\tfrac{\lambda\,\Delta t}{2}\right\rceil\right)\right),\qquad \lambda=\max_i\frac{s_d\left(|D_{L,ii}|+2|D_{Q,ii}\,\nu_i|\right)}{M_{ii}},\qquad h=\frac{\Delta t}{n} \]</div>
+  <div class="src">body.js:465-504 · physics 800 Hz, firmware 400 Hz → 2 physics steps per firmware tick (simulation.js:80-84) · with damping off, energy is conserved to better than 10⁻⁴</div></div>
+  <div class="note"><b>Where the code departs from textbook Fossen</b><ul>
+    <li>Added mass changes with submergence and wall distance but is frozen within a step; the \(\dot M_A\nu\) term is not modelled.</li>
+    <li>Quadratic damping uses the column form \(D_{Q,ij}|\nu_j|\nu_j\) with a full matrix.</li>
+    <li>A Froude–Krylov term is added for waves and gusts; the water itself does not rotate.</li>
+    <li>The image effect uses distances from the CG along world axes.</li>
+  </ul></div>
+</section>
+
+<!-- ============================== THRUSTERS ============================== -->
+<section class="doc" id="thrusters">
+  <div class="head"><span class="eyebrow">How it works</span><h2>Thrusters and battery<a class="anchor" href="#thrusters" aria-label="Link to Thrusters">#</a></h2>
+  <p class="muted"><code>src/physics/thruster.js</code>, <code>src/physics/battery.js</code></p></div>
+  <h3>PWM to thrust</h3>
+  <p>A measured table (Blue Robotics T200 / T500 or your own) or a parametric curve gives static thrust from the PWM pulse. Inside the deadband thrust is exactly zero. A motor reversed with <code>MOT_n_DIRECTION</code> = −1 uses the curve mirrored about 1500 µs, so the strong side of the propeller stays the strong side.</p>
+  <div class="eq"><div class="tex">\[ T_0(P)=\begin{cases} T_{fwd}\left(\dfrac{P-hi}{P_{max}-hi}\right)^{e} &amp; P&gt;hi\\[4pt] 0 &amp; lo\le P\le hi\\[2pt] -T_{rev}\left(\dfrac{lo-P}{lo-P_{min}}\right)^{e} &amp; P&lt;lo\end{cases}\qquad lo,hi=1500\mp\delta,\qquad T_{reversed}(P)=T_0(3000-P) \]</div>
+  <div class="where"><div><span>defaults</span><span>\(T_{fwd}=51.5\) N, \(T_{rev}=40.2\) N, \(\delta=25\) µs, \(e=1.25\), \(P\in[1100,1900]\)</span></div></div>
+  <div class="src">thruster.js:12-21, 73-97, 164-170</div></div>
+  <h3>Rotor speed, voltage and current</h3>
+  <p>The propeller cannot change speed instantly. A normalised rotor speed \(n\) follows the command with a faster time constant when speeding up than when braking, and pauses at zero when it reverses (the ESC re-commutates). Thrust grows with \(n|n|\). Thrust and current follow the battery voltage through the Blue Robotics tables at 10–20 V.</p>
+  <div class="eq"><div class="tex">\[ n_{cmd}=\operatorname{sgn}(T_{cmd})\sqrt{\frac{|T_{cmd}|}{T_{side}}},\qquad n_{k+1}=n_k+(n_{cmd}-n_k)\left(1-e^{-\Delta t/\tau}\right),\qquad T=T_{side}\;n|n| \]</div>
+  <div class="tex">\[ T_{cmd}=T_0(P)\;s_V(V_{bus}),\qquad s_V=\frac{\mathcal I(T_{max},V)}{\mathcal I(T_{max},V_{nom})},\qquad I=I_0+I_{max}(V)\left[\frac{|T|}{T_{side}\,s_V}\right]^{1.5} \]</div>
+  <div class="where"><div><span>T200 @ 16 V</span><span>\(\tau_{up}=0.05\) s, \(\tau_{down}=0.075\) s, reversal pause 0.03 s; full thrust 2.98–6.70 kgf forward and 13.6–32 A between 10 and 20 V; the ESC cuts out below 6.5 V</span></div></div>
+  <div class="src">thruster.js:29-32, 141-197</div></div>
+  <h3>In-flow, ventilation, hull and reaction torque</h3>
+  <p>Thrust falls when water already flows through the propeller (advance ratio), near the surface where the propeller sucks air, and when the jet hits the hull. The spinning propeller also twists the vehicle; mirror-image thrusters get opposite hands so a correctly built vehicle cancels it.</p>
+  <div class="eq"><div class="tex">\[ T_e=T\;\underbrace{\operatorname{clamp}\!\left(1-\frac{V_{in}}{V_0},0,1.25\right)}_{\text{in-flow}}\;\underbrace{\min\!\left(1,\sqrt{\tfrac{d}{1.5D}}\right)}_{\text{ventilation}}\;\underbrace{\left(1-t_d\right)}_{\text{jet on hull}},\qquad V_0=J_0\,D\,\frac{\text{rpm}_{max}}{60}\max(|n|,0.05) \]</div>
+  <div class="tex">\[ Q=-h\;\frac{K_Q}{K_T}\;D\;T,\qquad \frac{K_Q}{K_T}=0.12,\qquad \tau_{thr}=\sum_k\begin{bmatrix}T_{e,k}\,a_k\\ r_k\times T_{e,k}\,a_k+Q_k\,a_k\end{bmatrix} \]</div>
+  <div class="where"><div><span>\(t_d\)</span><span>jet–hull deduction from 7 rays cast along the jet, up to 0.5 (forward and reverse separately)</span></div><div><span>\(J_0\)</span><span>0.9 forward, 0.75 reverse for the T200</span></div></div>
+  <div class="src">thruster.js:204-229, body.js:365-388, model.js:58-80</div></div>
+  <h3>Battery</h3>
+  <p>A Thevenin model: open-circuit voltage from state of charge, an internal resistance that rises when the pack is nearly empty, and one RC branch for the slow voltage recovery after a burst. Default: 4S Li-ion, 18 Ah, 0.03 Ω, plus 2 A for the electronics.</p>
+  <div class="eq"><div class="tex">\[ V_t=n_{cells}\,\mathrm{OCV}(\mathrm{SoC})-I\,R(\mathrm{SoC})-V_1,\qquad V_{1,k+1}=V_{1,k}\,e^{-\Delta t/\tau_1}+I R_1\left(1-e^{-\Delta t/\tau_1}\right) \]</div>
+  <div class="tex">\[ \mathrm{SoC}=1-\frac{\int I\,dt}{3.6\,C_{mAh}},\qquad R=R_0\left[1+0.6\,\frac{\max(0,0.3-s)}{0.3}+2.5\,\frac{\max(0,0.05-s)}{0.05}\right],\qquad R_1=\tfrac12R_0,\ \tau_1=30\ \text{s} \]</div>
+  <div class="src">battery.js:11-81 · at full forward the DUBURI sample reads 15.9–16.0 V at 24–27 A</div></div>
+</section>
+
+<!-- ============================== HYDRO COEFFICIENTS ============================== -->
+<section class="doc" id="hydro">
+  <div class="head"><span class="eyebrow">How it works</span><h2>Added mass and damping from your design<a class="anchor" href="#hydro" aria-label="Link to Hydro">#</a></h2>
+  <p class="muted">Where the matrices \(M_A\), \(D_L\) and \(D_Q\) come from. AUTO-TUNE runs both methods at several resolutions and reports an uncertainty for each value.</p></div>
+  <h3>Mass properties</h3>
+  <p>The hull is voxelised (cell ≈ largest size / 56, at least 3 mm). Displaced volume and CB are integrated exactly along rays in x, y and z, weighted by how well each axis sees the surface; thin 12.7 mm plates come out within 0.04 %. Inertia uses uniform density and the parallel-axis theorem about the CG, unless you enter CAD values.</p>
+  <div class="eq"><div class="tex">\[ I_g=\rho_m I^{u}+m\left(|d|^2 I_3-d\,d^\top\right),\qquad \rho_m=\frac{m}{V_{vox}},\qquad M_G=H^\top M_O\,H,\quad H=\begin{bmatrix}I_3&amp;-S(r)\\0&amp;I_3\end{bmatrix} \]</div><div class="src">model.js:41-56, bem.js:317-327 · H moves any 6×6 matrix from a reference point to the CG</div></div>
+  <h3>Panel method (BEM) for added mass</h3>
+  <p>A Hess–Smith constant-source panel method on a smooth mesh of the hull, for a deeply submerged body in ideal flow. Six problems, one per DOF, share one influence matrix and are solved with GMRES; then the solution is extrapolated from three mesh sizes (900, 1800, 3600 panels).</p>
+  <div class="eq"><div class="tex">\[ \tfrac12\sigma_i+\sum_{k\ne i}K_{ik}\,\sigma_k=N_j(x_i),\qquad K_{ik}=\frac{1}{4\pi}\int_{S_k}\frac{n_i\cdot(x_i-\xi)}{|x_i-\xi|^3}\,dS,\qquad N=\begin{bmatrix}n\\ (r-r_{ref})\times n\end{bmatrix} \]</div>
+  <div class="tex">\[ \phi_{l,i}=\sum_k G_{ik}\,\sigma_{l,k},\quad G=-\frac{1}{4\pi|x-\xi|},\qquad m_{lj}=-\rho\sum_i \phi_{l,i}\,N_j(x_i)\,A_i,\qquad M_A=\tfrac12\left(m+m^\top\right) \]</div>
+  <div class="src">bem.js:26-200 · GMRES restart 60, tolerance 10⁻⁸ · matches Capytaine within 0.2–2 % and the exact ellipsoid within 2 %</div></div>
+  <p>Before AUTO-TUNE runs, the default is a Lamb ellipsoid with the hull's proportions and volume, with strip-theory floors on the rotational terms, moved to the CG.</p>
+  <h3>Lattice-Boltzmann CFD for damping</h3>
+  <p>A virtual tow tank on the GPU. D3Q19 lattice, regularised BGK collision with a Smagorinsky turbulence model, Bouzidi interpolated walls (moving walls for rotation), and forces by momentum exchange.</p>
+  <div class="eq"><div class="tex">\[ g_i^{eq}=w_i\left[(\rho-1)+\rho\left(3\,c_i\cdot u+4.5\,(c_i\cdot u)^2-1.5\,|u|^2\right)\right],\qquad g_i^{*}=g_i^{eq}+\left(1-\frac1\tau\right)4.5\,w_i\left(c_{i\alpha}c_{i\beta}-\tfrac13\delta_{\alpha\beta}\right)\Pi^{neq}_{\alpha\beta} \]</div>
+  <div class="tex">\[ \tau=\tfrac12\left(\tau_0+\sqrt{\tau_0^2+18\sqrt2\,C_s^2\,|\Pi^{neq}|/\rho}\right),\qquad \tau_0=3\nu_{lat}+\tfrac12,\qquad C_s=0.12 \]</div>
+  <div class="tex">\[ F=\sum_{\text{links}}\left[c_{\bar\imath}\left(g^{*}_{\bar\imath}+g_i+2w_i\right)-u_w\left(g^{*}_{\bar\imath}-g_i\right)\right] \]</div>
+  <div class="src">cfd/d3q19.js, cpu.js:120-217, gpu.js · weights 1/3, 1/18, 1/36</div></div>
+  <p>Each DOF is towed (or spun) at two Reynolds numbers, 500 and 2000, on up to three grids. The coefficients are fitted to \(C(Re)=C_\infty+K/Re\) and scaled to your vehicle in water: \(C_\infty\) becomes quadratic damping, \(K\) linear damping. The fit is projected onto a dissipative matrix so it can never add energy.</p>
+  <div class="eq"><div class="tex">\[ D_{Q,ij}=-\rho\,s_j^2\,L^{p_i}\,C_{\infty,i},\qquad D_{L,ij}=-\rho\,s_j\,L^{p_i-1}\,K_i\,\nu,\qquad p=2\ \text{(force)},\ 3\ \text{(moment)} \]</div>
+  <div class="tex">\[ \text{GCI}=\frac{1.25\,\left|\frac{f_1-f_2}{f_1}\right|}{r_{21}^{\,p}-1},\qquad f_{ext}=\frac{r_{21}^{\,p}f_1-f_2}{r_{21}^{\,p}-1}\qquad\text{(Celik et al. 2008)} \]</div>
+  <div class="src">study.js:400-541, core/convergence.js:27-50 · sphere drag at Re 100: Richardson 1.074 vs 1.088 reference (−1.2 %)</div></div>
+  <p class="small muted">Rotation runs use a frozen hull with a moving-wall condition, so rotational damping carries an extra 30 % model uncertainty.</p>
+</section>
+<!-- ============================== SENSORS ============================== -->
+<section class="doc" id="sensors">
+  <div class="head"><span class="eyebrow">How it works</span><h2>Sensors<a class="anchor" href="#sensors" aria-label="Link to Sensors">#</a></h2>
+  <p class="muted">The firmware never sees the true state, only what these models report. <code>src/ardusub/sensors.js</code></p></div>
+  <div class="table-wrap"><table><thead><tr><th>Sensor</th><th>Rate</th><th>Model</th></tr></thead><tbody>
+    <tr><td><b>IMU</b> (gyro, accelerometer)</td><td class="num">1 kHz</td><td>Truth interpolated between ticks, plus white noise (0.0015 rad/s, 0.04 m/s² per sample), a turn-on bias (0.02 °/s) and a bias random walk (0.0005 °/s/√s); harmonic notches, then a 2-pole low-pass at <code>INS_GYRO_FILTER</code> / <code>INS_ACCEL_FILTER</code> (20 Hz)</td></tr>
+    <tr><td><b>Depth</b> (Bar02 / Bar30)</td><td class="num">50 Hz → 10 Hz</td><td>Absolute pressure at the sensor's mounting point, 2 mm noise, quantised (Bar30 0.2 mbar), 20 ms latency; averaged at 10 Hz and converted as AP_Baro does</td></tr>
+    <tr><td><b>Vertical estimator</b></td><td class="num">400 Hz</td><td>3-state Kalman filter (height, climb rate, accel bias) standing in for EKF3's vertical channel</td></tr>
+    <tr><td><b>Compass</b></td><td class="num">10 Hz</td><td>Earth field rotated into the body, plus motor-current interference and <code>COMPASS_MOT_*</code> compensation</td></tr>
+    <tr><td><b>Rangefinder</b></td><td class="num">10 Hz</td><td>Ray cast down the body axis to floor and walls, \(d=t+(0.005+0.002t)\eta\); status from <code>RNGFND1_MIN/MAX_CM</code></td></tr>
+    <tr><td><b>Battery monitor</b></td><td class="num">10 Hz</td><td>Pack voltage and current with noise, mAh counting, resistance estimate as AP_BattMonitor</td></tr>
+    <tr><td><b>Leak probe</b></td><td class="num">3 Hz</td><td>Wet when flooded volume exceeds 1 mL; <code>LEAKn_LOGIC</code>, analog or digital, 3 s hold</td></tr>
+    <tr><td><b>Temperature</b></td><td class="num">5 Hz</td><td>Enclosure: \(\tau\dot T=T_{water}+Q R_{th}-T\), \(Q=8\ \text{W}+0.03|VI|\), \(\tau=600\) s</td></tr>
+    <tr><td><b>DVL / USBL</b> (optional)</td><td class="num">10 Hz</td><td>Position with 1 cm noise, only when <i>Positioning system present</i> is ticked</td></tr>
+  </tbody></table></div>
+  <h3>Depth: the AP_Baro water formula</h3>
+  <div class="eq"><div class="tex">\[ \bar p=\frac1n\sum p_m,\qquad d=\frac{\bar p-p_0}{9800\cdot\texttt{BARO\_SPEC\_GRAV}},\qquad p_0\leftarrow\bar p\ \text{ while } d&lt;0 \]</div>
+  <div class="src">sensors.js:367-393 · AP_Baro.cpp:901-944, ArduSub/sensors.cpp:4-16 · the physics uses the real ρg, so BARO_SPEC_GRAV is your correction, as on the vehicle</div></div>
+  <h3>Vertical estimator</h3>
+  <p>A small Kalman filter propagates height and climb rate with the accelerometer, delayed by <code>EK3_HGT_DELAY</code> (60 ms), and fuses each 10 Hz depth reading through an innovation gate.</p>
+  <div class="eq"><div class="tex">\[ x=[z,\ v_z,\ b_a],\qquad F=\begin{bmatrix}1&amp;\Delta t&amp;-\tfrac12\Delta t^2\\0&amp;1&amp;-\Delta t\\0&amp;0&amp;1\end{bmatrix},\qquad P\leftarrow FPF^\top+Q \]</div>
+  <div class="tex">\[ y=h-z,\quad S=P_{00}+R^2,\quad \frac{y^2}{S\gamma^2}\le1,\quad K=\frac{P_{:,0}}{S},\quad x\leftarrow x+Ky,\quad P\leftarrow P-K P_{0,:} \]</div>
+  <div class="where"><div><span>\(R\)</span><span>0.1 m with a depth sensor (ArduSub forces this), 10 m without</span></div><div><span>\(\gamma\)</span><span><code>EK3_HGT_I_GATE</code>/100 = 5</span></div></div>
+  <div class="src">sensors.js:548-619 · an output predictor with EK3_TAU_OUTPUT smooths what the controllers read</div></div>
+  <p class="small muted">Attitude: the estimate is the true attitude with a slow Gauss–Markov error (0.02°), the unlearned gyro bias, and a yaw drift when there is no compass or DVL. <code>AHRS_TRIM</code> is cancelled by an equal board misalignment, as on a calibrated vehicle.</p>
+</section>
+
+<!-- ============================== CONTROL ============================== -->
+<section class="doc" id="control">
+  <div class="head"><span class="eyebrow">How it works</span><h2>ArduSub control<a class="anchor" href="#control" aria-label="Link to Control">#</a></h2>
+  <p class="muted">Ported from ArduSub 4.5.7 and compared line by line with the C++ (<code>libraries/AC_PID</code>, <code>AC_AttitudeControl</code>, <code>AP_Motors</code>, <code>ArduSub/</code>). Units follow ArduPilot: centidegrees and cm at the interfaces.</p></div>
+  <p>The control chain for one tick, from stick to propeller:</p>
+  <ol>
+    <li><b>Pilot input</b> (joystick.cpp): MANUAL_CONTROL x, y, z, r become RC channels 1–6, scaled by the pilot gain.</li>
+    <li><b>Flight mode</b> turns them into targets: lean angles, a yaw rate, a climb rate, or a position.</li>
+    <li><b>Attitude controller</b>: input shaping → quaternion error → angle P (square-root controller) → body-rate target.</li>
+    <li><b>Rate PIDs</b>: body-rate error → roll, pitch, yaw demands.</li>
+    <li><b>Depth controller</b>: position P → velocity PID → acceleration PID → throttle.</li>
+    <li><b>Mixer</b> (AP_Motors6DOF): six demands × factor table → one output per motor → PWM.</li>
+  </ol>
+
+  <h3 id="pid">PID controllers</h3>
+  <p><code>AC_PID</code> is used for the rate loops (<code>ATC_RAT_*</code>) and vertical acceleration (<code>PSC_ACCZ_*</code>). Target and error are low-pass filtered, the derivative is taken on the filtered error, and the integrator stops growing while the motors are saturated.</p>
+  <div class="eq"><div class="tex">\[ \bar r_k=\bar r_{k-1}+\alpha_T\,(r_k-\bar r_{k-1}),\qquad \bar e_k=\bar e_{k-1}+\alpha_E\left(\bar r_{k-1}-y_k-\bar e_{k-1}\right),\qquad \bar d_k=\bar d_{k-1}+\alpha_D\left(\frac{\bar e_k-\bar e_{k-1}}{\Delta t}-\bar d_{k-1}\right) \]</div>
+  <div class="tex">\[ \alpha(\Delta t,f_c)=\frac{\Delta t}{\Delta t+\frac{1}{2\pi f_c}},\qquad I_k=\operatorname{clamp}\!\left(I_{k-1}+K_i\,\bar e_k\,\Delta t,\ \pm I_{max}\right)\ \text{unless saturated} \]</div>
+  <div class="tex">\[ u_k=\mu\left(K_p\,\bar e_k+K_d\,\bar d_k\right)+I_k \]</div>
+  <div class="where">
+    <div><span>\(f_c\)</span><span><code>FLTT</code>, <code>FLTE</code>, <code>FLTD</code> cut-offs (Hz); 0 disables the filter</span></div>
+    <div><span>\(\mu\)</span><span>slew-limiter gain reduction from <code>SMAX</code> (1 when SMAX = 0); <code>PDMX</code> caps \(|P+D|\)</span></div>
+    <div><span>defaults</span><span>roll/pitch P 0.135, I 0.09, D 0.0036, IMAX 0.444; yaw P 0.18, I 0.018, IMAX 0.222</span></div>
+  </div>
+  <div class="src">pid.js:75-136 · AC_PID.cpp:193-320 · in ArduSub 4.5.7 the rate loop does not add FF, so ATC_RAT_*_FF and D_FF have no effect</div></div>
+  <p>The <b>SMAX slew limiter</b> watches how fast P+D changes. When the slew rate stays above SMAX it lowers the gain, which stops oscillation before it builds up:</p>
+  <div class="eq"><div class="tex">\[ \mu=\begin{cases}\dfrac{S}{S+1.5\,(\rho_{mod}-S)} &amp; \rho_{mod}&gt;S\\[4pt] 1 &amp; \text{otherwise}\end{cases}\qquad \rho=\text{peak slew rate of }(P+D)\text{ over 300 ms windows, filtered at 25 Hz} \]</div><div class="src">control.js:343-387 · SlewLimiter.cpp:29-135</div></div>
+  <p>The <b>square-root controller</b> is ArduPilot's shaped P controller: linear near the target, then a square root so the commanded rate never asks for more than the allowed acceleration.</p>
+  <div class="eq"><div class="tex">\[ \dot x(e)=\begin{cases} K_p\,e &amp; |e|\le \dfrac{a_{max}}{K_p^2}\\[6pt] \operatorname{sgn}(e)\sqrt{2a_{max}\left(|e|-\dfrac{a_{max}}{2K_p^2}\right)} &amp; \text{otherwise}\end{cases}\qquad \dot x\leftarrow\operatorname{clamp}\!\left(\dot x,\ \pm\frac{|e|}{\Delta t}\right) \]</div><div class="src">control.js:23-38 · AP_Math/control.cpp:401-433</div></div>
+
+  <h3 id="attitude">Attitude controller</h3>
+  <p>The target attitude is a quaternion \(q_T\). Pilot inputs are shaped into a smooth feed-forward rate \(\omega_t\) with time constant <code>ATC_INPUT_TC</code>, and \(q_T\) advances by \(\omega_t\Delta t\) each tick. The error to the measured attitude \(q_B\) is split into a tilt part and a heading part, and each goes through the angle P.</p>
+  <div class="eq"><div class="tex">\[ \omega_d\leftarrow\omega_d+\operatorname{sqrt\_ctrl}\!\left(\theta_e,\ \tfrac{1}{\tau_{in}},\ \alpha_{max},\ \Delta t\right),\qquad \omega_t^{+}=\operatorname{clamp}\!\left(\omega_d,\ \omega_t\pm\alpha_{max}\Delta t\right) \]</div>
+  <div class="tex">\[ \omega_{c,i}=\operatorname{sqrt\_ctrl}\!\left(e_i,\ K_{ang,i},\ \tfrac12\alpha_i,\ \Delta t\right),\qquad \omega_b=\omega_c+\left(q_B^{-1}q_T\right)\omega_t,\qquad u_{roll}=\mathrm{PID}_R(\omega_{b,x},\hat\omega_x) \]</div>
+  <div class="tex">\[ \omega=\begin{bmatrix}\dot\phi-\sin\theta\,\dot\psi\\ \cos\phi\,\dot\theta+\sin\phi\cos\theta\,\dot\psi\\ -\sin\phi\,\dot\theta+\cos\theta\cos\phi\,\dot\psi\end{bmatrix}\qquad\text{(Euler rates to body rates)} \]</div>
+  <div class="where"><div><span>defaults</span><span><code>ATC_ANG_*_P</code> 6, <code>ATC_ACCEL_*_MAX</code> 110 000 cd/s² (1100 °/s²), <code>ATC_INPUT_TC</code> 0.15 s, <code>ATC_RATE_Y_MAX</code> 180 °/s</span></div><div><span>blend</span><span>above 30° tilt error the feed-forward fades out, above 60° only the tilt is corrected</span></div></div>
+  <div class="src">attitude.js:235-519 · AC_AttitudeControl.cpp:269-1012, AC_AttitudeControl_Sub.cpp:421-432</div></div>
+
+  <h3 id="depth">Depth and position</h3>
+  <p><code>AC_PosControl</code> runs a cascade: position error → velocity target → acceleration target → throttle around the hover value. Pilot climb commands are jerk-limited by <code>PSC_JERK_Z</code> and the filter cut-offs.</p>
+  <div class="eq"><div class="tex">\[ v_T=\operatorname{sqrt\_ctrl}\!\left(z_T-\hat z,\ K_{p,z}\right)+v_d,\qquad a_T=\mathrm{PID}_{vz}(v_T,\hat v_z)+a_d,\qquad u_{thr}=\frac{\mathrm{PID}_{az}(a_T,\,a_{z,meas})}{1000}+h \]</div>
+  <div class="tex">\[ \dot z_{pilot}=\begin{cases}V_{dn}\dfrac{c-(500-\delta)}{500-\delta} &amp; c&lt;500-\delta\\[6pt] V_{up}\dfrac{c-(500+\delta)}{500-\delta} &amp; c&gt;500+\delta\\[4pt] 0 &amp; \text{otherwise}\end{cases},\qquad \delta=\texttt{THR\_DZ}\cdot G \]</div>
+  <div class="where">
+    <div><span>\(h\)</span><span>hover throttle <code>MOT_THST_HOVER</code>, forced to 0.5 at boot by ArduSub</span></div>
+    <div><span>defaults</span><span><code>PSC_POSZ_P</code> 3, <code>PSC_VELZ_P</code> 8, <code>PSC_ACCZ_P</code> 0.5, <code>PSC_ACCZ_I</code> 0.1, <code>PILOT_SPEED_UP</code> 100 cm/s, <code>PILOT_ACCEL_Z</code> 100 cm/s²</span></div>
+  </div>
+  <div class="src">poscontrol.js:131-265 · AC_PosControl.cpp:701-1010, ArduSub/Attitude.cpp:90-125</div></div>
+  <p>The XY controller (Position Hold, Guided, Auto) works the same way in two dimensions. ArduSub turns its lean-angle output into <b>forward and lateral thrust</b> instead of tilting the vehicle:</p>
+  <div class="eq"><div class="tex">\[ \theta_T=\arctan\frac{-a_f}{100g},\qquad \phi_T=\arctan\frac{a_r\cos\theta_T}{100g},\qquad F=\frac{\operatorname{clamp}(-\theta_T,\pm A)}{A},\quad L=\frac{\operatorname{clamp}(\phi_T,\pm A)}{A} \]</div><div class="src">poscontrol.js:299-306, sub.js:550-554 · ArduSub/motors.cpp:171-184 · A = ANGLE_MAX</div></div>
+
+  <h3 id="mixer">Motor mixer</h3>
+  <p>Each motor has a row of six factors (roll, pitch, yaw, throttle, forward, lateral) from the <code>FRAME_CONFIG</code> table or from the automatic allocation. <code>MOT_n_DIRECTION</code> multiplies the result. For the Vectored 6DOF frame (the DUBURI file, <code>FRAME_CONFIG</code> = 2) the attitude-plus-throttle part and the yaw-plus-translation part are normalised separately:</p>
+  <div class="eq"><div class="tex">\[ \mathrm{rpt}_i=\rho\,r_i+\pi\,p_i+T\,t_i,\qquad \mathrm{yfl}_i=\gamma\,y_i+F\,f_i+L\,l_i,\qquad u_i=\operatorname{clamp}\!\left(d_i\left(\frac{\mathrm{rpt}_i}{m_1}+\frac{\mathrm{yfl}_i}{m_2}\right),\pm1\right) \]</div>
+  <div class="tex">\[ m_1=\max\!\left(1,\max_i|\mathrm{rpt}_i|\right),\quad m_2=\max\!\left(1,\max_i|\mathrm{yfl}_i|\right),\qquad \mathrm{PWM}_i=1500+u_i\cdot 400\ \ \text{(MOT\_PWM 1100–1900)} \]</div>
+  <div class="src">motors.js:306-436 · AP_Motors6DOF.cpp:233-559 · other frames use one clamp per motor; Vectored (FRAME_CONFIG 1) limits forward thrust by MOT_FV_CPLNG_K</div></div>
+  <p>A spool state machine (shut down → ground idle → spooling up → unlimited) ramps the output over <code>MOT_SPOOL_TIME</code> (0.5 s) after arming. <code>MOT_BAT_CURR_MAX</code> scales every output down when the predicted current is too high. Motor \(m\) drives the servo output whose <code>SERVOn_FUNCTION</code> is 33 + \(m\), and the ESC sees the previous tick’s value, as on the Pixhawk.</p>
+
+  <h3 id="scheduler">Main loop and scheduler</h3>
+  <p>Each 2.5 ms tick runs ArduSub's fast loop in the same order as <code>ArduSub.cpp</code>, then the scheduled tasks whose interval has passed. Two physics steps follow with the PWM held.</p>
+  <ol>
+    <li>Read IMU, AHRS and inertial navigation (the sensor models).</li>
+    <li>Run the rate controller (not in Manual or Motor Detect).</li>
+    <li>Motors output.</li>
+    <li>EKF yaw-reset check, flight mode update, surface and bottom detector.</li>
+    <li>Scheduled tasks (table below).</li>
+    <li>Physics: two 1.25 ms steps of the plant and environment.</li>
+  </ol>
+  <div class="table-wrap"><table><thead><tr><th>Task</th><th class="num">Rate</th><th class="num">Every n ticks</th><th>What it does</th></tr></thead><tbody>
+    <tr><td><code>gcs update_receive</code></td><td class="num">400 Hz</td><td class="num">1</td><td>MANUAL_CONTROL and heartbeats from the simulated GCS</td></tr>
+    <tr><td><code>fifty_hz_loop</code></td><td class="num">50 Hz</td><td class="num">8</td><td>Pilot-input, crash, EKF and depth-sensor failsafes; RC read; joystick and servo outputs</td></tr>
+    <tr><td><code>read_rangefinder</code></td><td class="num">20 Hz</td><td class="num">20</td><td>Rangefinder and SurfTrak terrain offset</td></tr>
+    <tr><td><code>update_batt_compass</code></td><td class="num">10 Hz</td><td class="num">40</td><td>Battery monitor and failsafe, compass</td></tr>
+    <tr><td><code>update_altitude</code></td><td class="num">10 Hz</td><td class="num">40</td><td>Depth sensor update and health</td></tr>
+    <tr><td><code>update_turn_counter</code></td><td class="num">10 Hz</td><td class="num">40</td><td>Tether turn counter</td></tr>
+    <tr><td><code>temperature</code></td><td class="num">5 Hz</td><td class="num">80</td><td>Internal temperature</td></tr>
+    <tr><td><code>three_hz_loop</code></td><td class="num">3 Hz</td><td class="num">133</td><td>Leak, internal pressure and temperature, GCS and terrain failsafes</td></tr>
+    <tr><td><code>one_hz_loop</code></td><td class="num">1 Hz</td><td class="num">400</td><td>Pre-arm status, notch sample rate</td></tr>
+    <tr><td><code>AP_Arming update</code></td><td class="num">1 Hz</td><td class="num">400</td><td>PreArm messages every 30 s</td></tr>
+  </tbody></table></div>
+  <p class="small muted">The 3 Hz loop runs every 133 ticks, which is 3.008 Hz: AP_Scheduler computes it the same way. Telemetry is recorded at 50 Hz (12 minutes in memory).</p>
+</section>
+
+<!-- ============================== AUTOTUNE ============================== -->
+<section class="doc" id="autotune">
+  <div class="head"><span class="eyebrow">How it works</span><h2>AUTO-TUNE<a class="anchor" href="#autotune" aria-label="Link to AUTO-TUNE">#</a></h2>
+  <p class="muted"><code>src/sim/tuning.js</code>. Every test runs on a fresh copy of your vehicle in open water; results are suggestions and nothing is applied until you click.</p></div>
+  <ol>
+    <li><b>Hydrodynamics.</b> Converged panel-method added mass and CFD damping for your hull, each with its uncertainty.</li>
+    <li><b>Rate loops</b>, inner loop first, following ArduPilot's AC_AutoTune: twitch the axis, raise D until the rate bounces back more than 10 % (AGGR 0.1), then raise P until the rate overshoots, then bisect between good and bad.</li>
+    <li><b>Angle P</b> by angle twitches of 20° (30° in yaw), backed off to 90 %; <code>ATC_ACCEL_*_MAX</code> from the measured acceleration.</li>
+    <li><b><code>ATC_INPUT_TC</code></b>: kept unless the tuned loops overshoot more than 10 % with it.</li>
+    <li><b>Depth</b> (accel → velocity → position) and, with a DVL, <b>position</b> gains by a grid search refined with golden-section steps on the step-response cost.</li>
+    <li><b>Check</b>: each axis is compared with your current gains on the full tuned set; an axis that was better before keeps its gains.</li>
+  </ol>
+  <div class="eq"><div class="tex">\[ J=0.5\,T_s+0.05\,\mathrm{OS}+0.1\max(0,\mathrm{OS}-10)+0.4\,N_{osc}+3\,\mathrm{sat}+0.6\,T_r+2\,\frac{\mathrm{RMS}_{tail}}{\text{band}},\qquad J_{eval}=0.6\,J(\text{step})+0.4\,J\!\left(-\tfrac12\text{step}\right) \]</div>
+  <div class="where"><div><span>\(T_r,\ T_s\)</span><span>10–90 % rise time and settling time (s); OS overshoot (%); \(N_{osc}\) oscillations; sat fraction of time the mixer saturated</span></div><div><span>margin</span><span>rate P and D are multiplied by 0.85, and every value is clamped to the ArduSub parameter range</span></div></div>
+  <div class="src">tuning.js:142-719 · AC_AutoTune_Multi.cpp constants</div></div>
+  <p class="small muted">On a well-damped ROV the D search can reach the top of its range without ever seeing a bounce; the panel marks such values as "at the limit".</p>
+</section>
+
+
+
+<!-- ============================== PARAMETERS ============================== -->
+<section class="doc" id="parameters">
+  <div class="head"><span class="eyebrow">Reference</span><h2>Parameters<a class="anchor" href="#parameters" aria-label="Link to Parameters">#</a></h2>
+  <p class="muted">All 2708 parameters ArduSub 4.5.7 defines, generated from the ArduPilot source by <code>tools/gen-params.mjs</code>, with the values from the DUBURI Pixhawk file.</p></div>
+  <ul>
+    <li><b>Loading.</b> Mission Planner (<code>NAME,value</code>) and QGroundControl (<code>sysid compid NAME value type</code>) files are both read. Every line is kept; names ArduSub 4.5.7 does not define are kept too and written back unchanged.</li>
+    <li><b>Simulated or stored.</b> 671 parameters change what the simulator does (gains, mixer, failsafes, sensors, joystick, outputs). The other 2037 (calibration, serial ports, logging, EKF tuning…) are stored and exported exactly.</li>
+    <li><b>Validation.</b> Edits are clamped to the ArduPilot range; values loaded from a file are never changed. <code>MOT_THST_HOVER</code> is forced to 0.5 at boot, as ArduSub does.</li>
+    <li><b>Legacy names</b> are converted on import: <code>ATC_RAT_*_FILT</code> → <code>FLTE</code>, <code>FS_BATT_*</code> → <code>BATT_*</code>, <code>MNT_</code> → <code>MNT1_</code>, <code>CAM_</code> → <code>CAM1_</code>.</li>
+    <li><b>Export</b> writes the 943 names of your file plus any you changed, with full float precision; the QGC format carries the right MAVLink type per parameter.</li>
+  </ul>
+  <div class="px" id="px">
+    <div class="chips" id="pxFilter" aria-label="Filter parameters">
+      <button class="chip" aria-pressed="true" data-f="sim">Affect the simulation</button>
+      <button class="chip" aria-pressed="false" data-f="changed">Changed in the DUBURI file</button>
+      <button class="chip" aria-pressed="false" data-f="file">In the DUBURI file</button>
+      <button class="chip" aria-pressed="false" data-f="all">All 2708</button>
+    </div>
+    <div class="px-bar">
+      <input id="pxq" type="search" placeholder="Name or words, e.g. ATC_RAT_RLL or leak" aria-label="Search parameters">
+      <select id="pxg" aria-label="Parameter group"><option value="">All groups</option></select>
+    </div>
+    <div class="px-count" id="pxc">Loading parameters…</div>
+    <div class="px-list" id="pxl"></div>
+    <button class="btn" id="pxmore" hidden>Show more</button>
+  </div>
+</section>
+
+<!-- ============================== ACCURACY ============================== -->
+<section class="doc" id="accuracy">
+  <div class="head"><span class="eyebrow">Reference</span><h2>Accuracy and limits<a class="anchor" href="#accuracy" aria-label="Link to Accuracy">#</a></h2>
+  <p class="muted">Engineering estimates of how closely the real vehicle will behave like the simulation, assuming you uploaded your own design with measured mass and CG. They have not been checked against pool data yet.</p></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>What</th><th>Estimated match</th><th style="min-width:160px">0 – 100 %</th><th>Why</th></tr></thead>
+    <tbody id="accRows"></tbody>
+  </table></div>
+  <p>In short: the <b>kind</b> of behaviour (which way it moves, whether a gain set oscillates, what each mode does) matches about 90 %; the <b>numbers</b> (speed, overshoot, settling time) about 70–80 %. Gains tuned here are in the right range but may need 10–30 % adjustment in the pool.</p>
+  <h3>Not modelled</h3>
+  <ul>
+    <li>The tether. A real tether adds drag and pulls the vehicle, most in sway and at depth.</li>
+    <li>Wake interaction between thrusters, windmilling drag of a stopped propeller, wave radiation damping.</li>
+    <li>EKF3 itself (a simpler estimator with realistic noise stands in), GPS, and a real MAVLink connection.</li>
+    <li>Temperature changing with depth; thrusters and electronics changing with pressure.</li>
+  </ul>
+  <div class="note"><b>Make it trustworthy</b><p>Weigh the vehicle, find the CG with a hang test, and, if you can, measure thrust on a stand. Then do three simple pool runs (full forward, full up, a yaw turn) and compare the logs with the same runs here.</p></div>
+</section>
+
+<!-- ============================== PRESENTING ============================== -->
+<section class="doc" id="presenting">
+  <div class="head"><span class="eyebrow">Reference</span><h2>Presenting the simulator<a class="anchor" href="#presenting" aria-label="Link to Presenting">#</a></h2>
+  <p class="muted">A one-minute pitch, a five-minute demo and the questions a supervisor is likely to ask.</p></div>
+  <h3>One-minute pitch</h3>
+  <div class="note">
+    <p>"Sir, the DUBURI simulator lets us test the robot on a computer before it goes in the water. It uses our own 3D design and the exact parameter file that is on our Pixhawk."</p>
+    <p>"Inside, the ArduSub 4.5.7 control code is ported line by line and checked against the ArduPilot source. The motion is computed with the Fossen 6-DOF equations that marine robotics uses."</p>
+    <p>"So we can check the thruster layout, the PID gains and depth hold before a pool session. That saves pool time and battery, and lowers the risk of damaging the vehicle."</p>
+    <p>"The numbers won't match exactly. Our estimate is about 90 % for the kind of behaviour and 70–80 % for numbers like speed and overshoot. One measured pool test would let us calibrate it."</p>
+  </div>
+  <h3>Five-minute demo</h3>
+  <ol>
+    <li>Open the simulator and click <b>Fly the sample first</b>.</li>
+    <li>Press <kbd>Enter</kbd> to arm, fly with <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> and <kbd>R</kbd>/<kbd>F</kbd>.</li>
+    <li>Press <kbd>3</kbd> (Depth Hold), let go of the keys, press <kbd>G</kbd>: the vehicle keeps its depth and the graphs show target and actual.</li>
+    <li>Open <b>Frame</b> and move the Surge slider: show which thrusters fire and the force that comes out.</li>
+    <li>Open <b>Params</b>: our 943 Pixhawk parameters are loaded; change a gain and the effect is immediate.</li>
+    <li>Open <b>Tuning</b> and run a yaw step test: rise time, overshoot and settling time appear.</li>
+    <li>Set <code>FS_GCS_ENABLE</code> to 3, click <b>GCS link</b>: about 2.5 s later the vehicle switches to Depth Hold on its own.</li>
+    <li>Upload our design (OBJ) and show the thrusters being found automatically.</li>
+  </ol>
+  <p class="small muted">AUTO-TUNE runs the panel method and CFD and can take several minutes; start it before the meeting if you want to show its result.</p>
+  <h3>Likely questions</h3>
+  <details><summary>Is this the real ArduSub firmware?</summary><div><p>No. It is a JavaScript port of the ArduSub 4.5.7 control code (motors, attitude, PID, depth and position control, modes, failsafes, joystick), compared line by line with the C++ source. It is not the firmware binary (that would be SITL), and EKF3 is replaced by a simpler estimator.</p></div></details>
+  <details><summary>How close is it to the real robot?</summary><div><p>About 90 % for the kind of behaviour and 70–80 % for the numbers, as an estimate. The largest uncertainties are drag (CFD, ±20–30 %), the missing tether and the mass and CG we enter. See <a href="#accuracy">Accuracy and limits</a>.</p></div></details>
+  <details><summary>Why not ArduPilot SITL with Gazebo?</summary><div><p>SITL runs the real firmware and is a good cross-check, but it needs a Linux setup and a separately built physics model. DUBURI runs in any browser, builds the hydrodynamic model from our own CAD, and loads our Pixhawk file directly. Both can be used together.</p></div></details>
+  <details><summary>What do we need to measure?</summary><div><p>Mass in air, centre of gravity, ideally thrust per thruster, and one short pool test to compare with the simulation.</p></div></details>
+  <details><summary>Can the exported parameters harm the vehicle?</summary><div><p>The export is an ordinary <code>.param</code> file with your original values plus the ones you changed. Review the changed values in QGroundControl before writing them, as with any parameter change.</p></div></details>
+</section>
+
+<!-- ============================== TROUBLESHOOTING ============================== -->
+<section class="doc" id="troubleshooting">
+  <div class="head"><span class="eyebrow">Reference</span><h2>Troubleshooting<a class="anchor" href="#troubleshooting" aria-label="Link to Troubleshooting">#</a></h2></div>
+  <details><summary>"Compass performance degraded" every time I arm</summary><div><p>The DUBURI file has <code>GPS_TYPE</code> = 1 and there is no EKF origin, so ArduSub prints this warning. Real ArduSub does the same. Set <code>GPS_TYPE</code> = 0 if the vehicle has no GPS.</p></div></details>
+  <details><summary>"Mode change failed: … requires position"</summary><div><p>Position Hold, Surface, Guided, Auto and Circle need a position estimate. Tick <b>Positioning system present (DVL / USBL)</b> in Pool &amp; water, only if the real vehicle has one.</p></div></details>
+  <details><summary>"Mode change failed: … need alt estimate"</summary><div><p>Depth modes need a working depth sensor. Check the depth sensor in Pool &amp; water and <code>BARO_EXT_BUS</code> / <code>BARO_PROBE_EXT</code>.</p></div></details>
+  <details><summary>The vehicle will not arm</summary><div><p>Read the PreArm banner on the HUD: it gives ArduSub's own reason. Arming also needs a joystick button mapped to arm or arm-toggle, and is refused while the GCS link is down.</p></div></details>
+  <details><summary>The gamepad is not detected</summary><div><p>Press any button once. Use Chrome or Edge. Some embedded views hide controllers: save the page from Logs &amp; files and open the file directly.</p></div></details>
+  <details><summary>The 3D view is blank</summary><div><p>The simulator needs WebGL2. Turn on hardware acceleration in the browser settings, or try Chrome or Edge.</p></div></details>
+  <details><summary>A thruster was detected that is not a thruster</summary><div><p>Short hollow parts 85–115 mm across look like a T200 duct. Discard the detection or rename the part so it contains "mount" or "housing".</p></div></details>
+</section>
+
+<!-- ============================== DEVELOPMENT ============================== -->
+<section class="doc" id="development">
+  <div class="head"><span class="eyebrow">Reference</span><h2>Development<a class="anchor" href="#development" aria-label="Link to Development">#</a></h2>
+  <p class="muted">Plain ES modules, built into one HTML file with esbuild. GPL-3.0-or-later, because the control code is a port of ArduPilot.</p></div>
+  <div class="code"><pre id="code1">npm install
+npm test               # 185 unit tests
+npm run build          # dist/duburi-sim.html, docs/index.html (GitHub Pages)
+npm run build:wasm     # recompile src/wasm/kernels.c (clang with wasm32)
+npm run validate:cfd   # sphere drag through the full CFD pipeline
+node tools/gen-params.mjs   # regenerate the parameter table (needs an ArduPilot checkout)</pre><button class="btn" data-copy="code1">Copy</button></div>
+  <div class="table-wrap"><table><thead><tr><th>Folder</th><th>Contents</th></tr></thead><tbody>
+    <tr><td><code>src/ardusub/</code></td><td>ArduSub 4.5.7 port: params, motors, attitude, PID, position control, navigation, joystick, RC, sensors, modes and failsafes</td></tr>
+    <tr><td><code>src/physics/</code></td><td>6-DOF plant, thrusters, battery, environment (pool, water, waves, current)</td></tr>
+    <tr><td><code>src/hydro/</code></td><td>Water properties (EOS-80), panel method (BEM), hull meshing</td></tr>
+    <tr><td><code>src/cfd/</code></td><td>D3Q19 lattice-Boltzmann on CPU and WebGL2, tow-tank studies</td></tr>
+    <tr><td><code>src/geometry/</code></td><td>STL/OBJ/PLY, voxelisation, mass properties, thruster detection</td></tr>
+    <tr><td><code>src/alloc/</code></td><td>ArduSub frame tables, thruster allocation and DOF analysis</td></tr>
+    <tr><td><code>src/sim/</code></td><td>Simulation loop, telemetry, step tests and AUTO-TUNE</td></tr>
+    <tr><td><code>src/ui/</code></td><td>three.js scene, HUD, panels, graphs</td></tr>
+  </tbody></table></div>
+  <p>Every difference found between the earlier port and ArduSub 4.5.7, and how it was fixed, is listed in <a href="https://github.com/jarifalam13/DUBURI_SIM/blob/main/AUDIT.md" target="_blank" rel="noopener">AUDIT.md</a> (109 findings).</p>
+</section>
+
+</div>
+</main>
+</div>
+
+<div class="lightbox" id="lb" hidden role="dialog" aria-modal="true" aria-label="Screenshot">
+  <button class="btn" id="lbClose">Close</button>
+  <div><img id="lbImg" alt=""><p id="lbCap"></p></div>
+</div>
+
+<script>
+window.ARCH_NODES = {
+  design: { t: 'Design file', d: 'Your CAD export, read in the browser. Units, forward and up axes and the origin are set in Vehicle.', rows: [['Formats', 'STL (binary or ASCII), OBJ, PLY'], ['Code', 'src/geometry/formats.js, stl.js']] },
+  geo: { t: 'Geometry analysis', d: 'The hull is voxelised. Volume and centre of buoyancy are integrated exactly along rays; inertia about the CG follows from the mass you enter.', rows: [['Gives', 'volume, CB, inertia, projected areas, contact points'], ['Code', 'src/geometry/analyze.js, mesh.js']] },
+  detect: { t: 'Thrusters and allocation', d: 'Thrusters are found by part name or duct shape, then matched to the FRAME_CONFIG table. The allocator finds which axes the layout controls and builds the mixer.', rows: [['Gives', 'positions, directions, mixer factors, authority per axis'], ['Code', 'src/geometry/thrusterDetect.js, src/alloc/allocation.js']] },
+  hydro: { t: 'Hydrodynamic coefficients', d: 'Added mass from a panel method (BEM) and damping from lattice-Boltzmann CFD, each on several grids with an uncertainty. Run by AUTO-TUNE or the CFD lab.', rows: [['Gives', 'M_A (6×6), D_L and D_Q (6×6)'], ['Code', 'src/hydro/bem.js, src/cfd/']] },
+  model: { t: 'Plant model', d: 'All matrices moved to the CG, checked for symmetry and positive definiteness, plus thruster, battery and hull data.', rows: [['Code', 'src/vehicle/model.js']] },
+  pilot: { t: 'Pilot input', d: 'Keyboard or gamepad, sent as MAVLink MANUAL_CONTROL at 50 Hz with a 1 Hz heartbeat, exactly like QGroundControl.', rows: [['Rate', '50 Hz'], ['Parameters', 'JS_GAIN_*, JS_THR_GAIN, BTNn_FUNCTION'], ['Code', 'src/ui/input.js, src/ardusub/joystick.js']] },
+  fw: { t: 'ArduSub 4.5.7 firmware', d: 'The control code ported line by line: modes, attitude and depth controllers, AP_Motors6DOF mixer, failsafes, arming checks and the AP_Scheduler task table.', rows: [['Rate', '400 Hz (SCHED_LOOP_RATE)'], ['Parameters', '671 that change what it does'], ['Code', 'src/ardusub/sub.js, attitude.js, poscontrol.js, pid.js, motors.js']] },
+  pwm: { t: 'Servo outputs', d: 'Motor m drives the output whose SERVOn_FUNCTION is 33 + m. The ESC sees the previous tick’s value, latched at RC_SPEED for PWM.', rows: [['Range', 'MOT_PWM_MIN 1100 … MOT_PWM_MAX 1900 µs'], ['Code', 'src/ardusub/motors.js']] },
+  thr: { t: 'Thrusters', d: 'PWM to thrust from the T200/T500 table (mirrored for reversed motors), rotor-speed lag, battery voltage, current draw, reaction torque, in-flow and ventilation losses.', rows: [['Battery', '4S Li-ion 18 Ah, Thevenin model'], ['Code', 'src/physics/thruster.js, battery.js']] },
+  plant: { t: '6-DOF plant', d: 'Fossen’s equations: rigid body plus added mass, Coriolis and Munk terms, coupled damping, buoyancy at the CB, Froude–Krylov forces, floor and wall contact. RK4 with a renormalised quaternion.', rows: [['Rate', '800 Hz, 2 steps per firmware tick'], ['Code', 'src/physics/body.js']] },
+  env: { t: 'Water and pool', d: 'Pool geometry, density and viscosity from temperature and salinity, compressible pressure (EOS-80), finite-depth waves, current and turbulence.', rows: [['Code', 'src/physics/environment.js, src/hydro/water.js']] },
+  sens: { t: 'Sensors', d: 'What the firmware is allowed to know: IMU with noise and bias drift, depth averaged at 10 Hz, compass, rangefinder, leak probes, temperature, battery monitor and a vertical Kalman filter.', rows: [['Rates', 'IMU 1 kHz, depth 10 Hz, rangefinder and compass 10 Hz'], ['Code', 'src/ardusub/sensors.js']] },
+  out: { t: 'What you see', d: 'The 3D pool, the Cockpit-style HUD, live target-vs-actual graphs, CSV telemetry at 50 Hz and the exported .param file.', rows: [['Code', 'src/ui/']] },
+};
+</script>
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  /* ---------- panel tour ---------- */
+  const PANELS = [
+    ['06-thrusters', 'Thrusters', 'Order = ArduSub motor output. Position, direction, polarity, model (T200, T500, generic) or your measured PWM-to-thrust table.'],
+    ['07-frame', 'Frame', 'Every FRAME_CONFIG as a card or Automatic; custom frame builder; Try it sliders; copy the mixer as add_motor_raw_6dof() lines.'],
+    ['09-mixer', 'Frame & mixer', 'Which axes the layout controls, authority and cross-coupling per axis, saturation scheme.'],
+    ['10-hydro', 'Hydrodynamics', 'Added-mass and damping matrices, their source and uncertainty, thruster–hull interaction.'],
+    ['11-cfd', 'CFD lab', 'Virtual tow tank on the GPU: flow, drag and damping from your hull with grid convergence.'],
+    ['12-pool', 'Pool & water', 'Pool size and floor, water, current, waves, pressure, depth sensor and positioning.'],
+    ['13-params', 'Parameters', 'All 2708 ArduSub parameters, searchable, with ranges, value lists and bitmasks; load and save .param.'],
+    ['14-params-search', 'Parameter search', 'Search by name or words; filter to simulated, stored-only or changed values.'],
+    ['15-controller', 'Controller', 'Gamepad buttons and shift functions, lights, camera mount, relays, servo outputs, RC1–16.'],
+    ['16-motors', 'Motor test', 'Spin one thruster at a time, as MAV_CMD_DO_MOTOR_TEST does.'],
+    ['17-tuning', 'Tuning', 'ArduSub gains grouped by loop, step tests with metrics.'],
+    ['19-mission', 'Mission', 'AUTO waypoints (north, east, depth, hold) and GUIDED go-to.'],
+    ['20-logs', 'Logs & files', 'Autopilot messages, telemetry CSV, vehicle files, save the page for offline use.'],
+    ['23-autotune', 'AUTO-TUNE', 'Panel-method added mass, CFD damping, then ArduPilot-style twitch tuning; suggestions only.'],
+    ['21-team', 'Team', 'Team name, logo and colour; each team keeps its own vehicles in the browser.'],
+    ['22-help', 'Help', 'Quick start, keyboard and gamepad, conventions, what is simulated and the limits.'],
+  ];
+  $('#tour').innerHTML = PANELS.map(([f, t, d]) => `<button class="card" data-img="shots/${f}.jpg" data-cap="${esc(t)}: ${esc(d)}"><img src="shots/${f}.jpg" alt="${esc(t)} panel" loading="lazy"><div><b>${esc(t)}</b><span>${esc(d)}</span></div></button>`).join('');
+
+  /* ---------- lightbox ---------- */
+  const lb = $('#lb');
+  const openLb = (src, cap) => { $('#lbImg').src = src; $('#lbImg').alt = cap; $('#lbCap').textContent = cap; lb.hidden = false; $('#lbClose').focus(); };
+  document.addEventListener('click', (e) => {
+    const c = e.target.closest('.card'); if (c) { openLb(c.dataset.img, c.dataset.cap); return; }
+    const img = e.target.closest('figure img'); if (img) { openLb(img.src, img.closest('figure').querySelector('figcaption')?.textContent || img.alt); return; }
+    if (e.target === lb || e.target.id === 'lbClose') lb.hidden = true;
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { lb.hidden = true; $('#qres').hidden = true; rail.classList.remove('open'); } });
+
+  /* ---------- tabs (flying) ---------- */
+  $$('[data-tab]').forEach((b) => b.addEventListener('click', () => {
+    $$('[data-tab]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    $$('[data-pane]').forEach((p) => (p.hidden = p.dataset.pane !== b.dataset.tab));
+  }));
+
+  /* ---------- modes ---------- */
+  const MODES = [
+    ['1', 'Manual', 19, false, false, 'Pilot commands go straight to the mixer. No stabilisation.'],
+    ['2', 'Stabilize', 0, false, false, 'Keeps roll and pitch level and holds heading when the yaw stick is centred. The pilot controls up and down.'],
+    ['4', 'Acro', 1, false, false, 'Sticks command rotation rates in the body frame. No self-levelling.'],
+    ['3', 'Depth Hold', 2, false, true, 'Stabilize plus depth hold from the depth sensor. The throttle stick changes depth at PILOT_SPEED_UP / PILOT_SPEED_DN.'],
+    ['–', 'SurfTrak', 21, false, true, 'Depth hold that keeps a constant distance above the bottom with the rangefinder, once deeper than SURFTRAK_DEPTH.'],
+    ['5', 'Position Hold', 16, true, true, 'Holds position, depth and heading. Needs a DVL or USBL.'],
+    ['6', 'Surface', 9, true, true, 'Climbs to the surface, then switches to Depth Hold.'],
+    ['–', 'Guided', 4, true, true, 'Goes to a target position: Mission panel, or a click in Top view.'],
+    ['–', 'Auto', 3, true, true, 'Flies the waypoint mission (WPNAV_* speeds) and loiters at the end.'],
+    ['–', 'Circle', 7, true, true, 'Circles a centre point at CIRCLE_RADIUS and CIRCLE_RATE.'],
+    ['–', 'Motor Detect', 20, false, true, 'Pulses each motor and sets MOT_n_DIRECTION from how the vehicle responds.'],
+  ];
+  const pill = (need) => need ? '<span class="pill dot">needed</span>' : '<span class="pill yes dot">not needed</span>';
+  const drawModes = (f) => {
+    $('#modeTable tbody').innerHTML = MODES.filter((m) => f === 'all' || (f === 'nopos' && !m[3]) || (f === 'nodepth' && !m[4]))
+      .map(([k, n, id, pos, dep, d]) => `<tr><td>${k === '–' ? '<span class="muted">menu</span>' : `<kbd>${k}</kbd>`}</td><td><b>${n}</b></td><td class="num">${id}</td><td>${pill(pos)}</td><td>${pill(dep)}</td><td>${d}</td></tr>`).join('');
+  };
+  drawModes('all');
+  $$('#modeFilter .chip').forEach((b) => b.addEventListener('click', () => { $$('#modeFilter .chip').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); drawModes(b.dataset.f); }));
+
+  /* ---------- accuracy ---------- */
+  const ACC = [
+    ['Controller decisions: mode logic, failsafes, PWM per thruster', 95, 95, '~95 %', 'Ported line by line from ArduSub 4.5.7 and tested; not the firmware binary, simpler estimator than EKF3.'],
+    ['Stability: does a gain set oscillate, does the vehicle tip', 85, 90, '85–90 %', 'Set mostly by mass, CG, CB and thruster layout, which match well when measured.'],
+    ['Depth hold: overshoot and settling time', 75, 85, '75–85 %', 'Buoyancy and thrust are modelled well; damping carries uncertainty.'],
+    ['Speed, acceleration and turning', 65, 80, '65–80 %', 'Drag comes from CFD (±20–30 %) and the tether is not modelled.'],
+  ];
+  $('#accRows').innerHTML = ACC.map(([w, lo, hi, txt, why]) => `<tr><td>${w}</td><td class="num">${txt}</td><td><div class="range" title="${txt}" role="img" aria-label="Estimated match ${txt}">${lo === hi ? `<i class="pt" style="left:${lo}%"></i>` : `<i style="left:${lo}%;width:${hi - lo}%"></i>`}</div><div class="axis"><span>0</span><span>50</span><span>100</span></div></td><td>${why}</td></tr>`).join('');
+
+  /* ---------- copy buttons ---------- */
+  $$('[data-copy]').forEach((b) => b.addEventListener('click', () => {
+    const t = document.getElementById(b.dataset.copy).textContent;
+    const done = () => { b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1400); };
+    try { navigator.clipboard.writeText(t).then(done, () => selectText(b.dataset.copy)); } catch { selectText(b.dataset.copy); }
+  }));
+  function selectText(id) { const r = document.createRange(); r.selectNodeContents(document.getElementById(id)); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+
+  /* ---------- architecture diagram ---------- */
+  const NODES = window.ARCH_NODES || {};
+  const det = $('#archDetail');
+  const showNode = (id) => {
+    const n = NODES[id]; if (!n || !det) return;
+    $$('.node').forEach((g) => g.classList.toggle('sel', g.dataset.id === id));
+    det.innerHTML = `<h4>${n.t}</h4><p>${n.d}</p><dl>${n.rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+  };
+  $$('.node').forEach((g) => {
+    g.addEventListener('click', () => showNode(g.dataset.id));
+    g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showNode(g.dataset.id); } });
+  });
+  if ($('.node')) showNode('fw');
+  const trace = $('#trace');
+  if (trace) {
+    const ORDER = ['pilot', 'fw', 'pwm', 'thr', 'plant', 'env', 'sens', 'fw'];
+    let timer = null;
+    trace.addEventListener('click', () => {
+      if (timer) { clearInterval(timer); timer = null; $$('.node').forEach((g) => g.classList.remove('lit')); trace.textContent = 'Trace one loop'; return; }
+      let i = 0; trace.textContent = 'Stop';
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const tick = () => {
+        $$('.node').forEach((g) => g.classList.toggle('lit', g.dataset.id === ORDER[i]));
+        showNode(ORDER[i]);
+        i++; if (i >= ORDER.length) { clearInterval(timer); timer = null; trace.textContent = 'Trace one loop'; setTimeout(() => $$('.node').forEach((g) => g.classList.remove('lit')), 900); }
+      };
+      tick(); timer = setInterval(tick, reduce ? 1600 : 1100);
+    });
+  }
+
+  /* ---------- parameter explorer ---------- */
+  let PARAMS = null, GROUPS = {}, shown = 60, pxFilter = 'sim';
+  const fmt = (v) => (typeof v === 'number' ? (Number.isInteger(v) ? String(v) : String(+v.toPrecision(7))) : esc(v));
+  const pxRender = () => {
+    if (!PARAMS) return;
+    const q = $('#pxq').value.trim().toLowerCase(), g = $('#pxg').value;
+    const words = q.split(/\s+/).filter(Boolean);
+    const list = PARAMS.filter((p) => {
+      if (pxFilter === 'sim' && !p.e) return false;
+      if (pxFilter === 'file' && !('f' in p)) return false;
+      if (pxFilter === 'changed' && !('f' in p && p.f !== p.d)) return false;
+      if (g && p.g !== g) return false;
+      if (!words.length) return true;
+      const hay = (p.n + ' ' + (p.t || '') + ' ' + (p.s || '')).toLowerCase();
+      return words.every((w) => hay.includes(w));
+    });
+    if (q) list.sort((a, b) => (b.n.toLowerCase().startsWith(q) - a.n.toLowerCase().startsWith(q)));
+    $('#pxc').textContent = `${list.length} parameter${list.length === 1 ? '' : 's'}${list.length > shown ? `, showing ${shown}` : ''}`;
+    $('#pxl').innerHTML = list.slice(0, shown).map((p) => {
+      const vals = p.v ? Object.entries(p.v).map(([k, v]) => `${esc(k)} ${esc(v)}`).join(' · ') : p.b ? 'bits: ' + Object.entries(p.b).map(([k, v]) => `${esc(k)} ${esc(v)}`).join(' · ') : '';
+      const changed = 'f' in p && p.f !== p.d;
+      return `<article class="prm" id="p-${esc(p.n)}"><header><code>${esc(p.n)}</code><span class="t">${esc(p.t || '')}</span><span class="tags">${p.e ? '<span class="pill yes dot">simulated</span>' : '<span class="pill">stored</span>'}${changed ? '<span class="pill dot" style="color:var(--foam)">changed</span>' : ''}${p.rb ? '<span class="pill">reboot</span>' : ''}${p.ro ? '<span class="pill">read-only</span>' : ''}</span></header>${p.s ? `<p>${esc(p.s)}</p>` : ''}<dl><span>default <b>${fmt(p.d)}</b></span>${'f' in p ? `<span>DUBURI <b>${fmt(p.f)}</b></span>` : ''}${p.u ? `<span>units <b>${esc(p.u)}</b></span>` : ''}${p.lo != null ? `<span>range <b>${fmt(p.lo)} … ${fmt(p.hi)}</b></span>` : ''}<span>group <b>${esc(GROUPS[p.g] || p.g)}</b></span></dl>${vals ? `<div class="vals">${vals}</div>` : ''}</article>`;
+    }).join('');
+    $('#pxmore').hidden = list.length <= shown;
+  };
+  $('#pxq').addEventListener('input', () => { shown = 60; pxRender(); });
+  $('#pxg').addEventListener('change', () => { shown = 60; pxRender(); });
+  $('#pxmore').addEventListener('click', () => { shown += 120; pxRender(); });
+  $$('#pxFilter .chip').forEach((b) => b.addEventListener('click', () => { $$('#pxFilter .chip').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); pxFilter = b.dataset.f; shown = 60; pxRender(); }));
+  fetch('params.json').then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); }).then((d) => {
+    PARAMS = d.params; GROUPS = d.groups;
+    $('#pxg').innerHTML = '<option value="">All groups</option>' + Object.entries(GROUPS).sort((a, b) => a[0].localeCompare(b[0])).map(([k, v]) => `<option value="${esc(k)}">${esc(k)}_ · ${esc(v)}</option>`).join('');
+    pxRender();
+  }).catch(() => { $('#pxc').textContent = 'The parameter table could not be loaded. Reload the page to try again; the Parameters panel in the simulator has the same data.'; });
+
+  /* ---------- search ---------- */
+  const idx = $$('section.doc').flatMap((s) => {
+    const items = [{ id: s.id, t: s.querySelector('h2')?.textContent.replace('#', '').trim() || s.id, x: s.textContent }];
+    $$('h3[id], .sub-sec[id]', s).forEach((h) => items.push({ id: h.id, t: h.textContent.replace('#', '').trim(), x: (h.closest('.sub-sec') || h.parentElement).textContent, parent: items[0].t }));
+    return items;
+  });
+  const qres = $('#qres');
+  let sel = 0;
+  const runSearch = () => {
+    const q = $('#q').value.trim().toLowerCase();
+    if (!q) { qres.hidden = true; return; }
+    const ws = q.split(/\s+/);
+    const docs = idx.filter((i) => ws.every((w) => i.x.toLowerCase().includes(w))).slice(0, 7)
+      .map((i) => `<a href="#${i.id}"><b>${esc(i.t)}</b><small>${i.parent ? esc(i.parent) : 'Section'}</small></a>`);
+    const prm = (PARAMS || []).filter((p) => p.n.toLowerCase().includes(q.replace(/\s+/g, '_'))).slice(0, 6)
+      .map((p) => `<a href="#parameters" data-param="${esc(p.n)}"><b class="mono">${esc(p.n)}</b><small>${esc(p.t || 'Parameter')}</small></a>`);
+    const all = [...docs, ...prm];
+    qres.innerHTML = all.length ? all.join('') : '<a aria-disabled="true"><small>No match</small></a>';
+    qres.hidden = false; sel = 0; qres.querySelector('a')?.classList.add('on');
+  };
+  $('#q').addEventListener('input', runSearch);
+  $('#q').addEventListener('keydown', (e) => {
+    const as = $$('a', qres); if (!as.length) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); as[sel]?.classList.remove('on'); sel = (sel + (e.key === 'ArrowDown' ? 1 : as.length - 1)) % as.length; as[sel].classList.add('on'); }
+    if (e.key === 'Enter') { e.preventDefault(); as[sel]?.click(); }
+  });
+  qres.addEventListener('click', (e) => {
+    const a = e.target.closest('a'); if (!a) return;
+    qres.hidden = true;
+    if (a.dataset.param) { e.preventDefault(); pxFilter = 'all'; $$('#pxFilter .chip').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.f === 'all'))); $('#pxg').value = ''; $('#pxq').value = a.dataset.param; shown = 60; pxRender(); document.getElementById('parameters').scrollIntoView(); }
+  });
+  document.addEventListener('click', (e) => { if (!e.target.closest('.search')) qres.hidden = true; });
+
+  /* ---------- rail: mobile toggle + scrollspy ---------- */
+  const rail = $('#rail');
+  $('#menuBtn').addEventListener('click', () => { const o = rail.classList.toggle('open'); $('#menuBtn').setAttribute('aria-expanded', String(o)); });
+  rail.addEventListener('click', (e) => { if (e.target.closest('a')) rail.classList.remove('open'); });
+  const links = $$('.rail a');
+  const targets = links.map((a) => document.getElementById(a.getAttribute('href').slice(1))).filter(Boolean);
+  const spy = () => {
+    const y = window.scrollY + 120;
+    let cur = targets[0];
+    for (const t of targets) if (t.getBoundingClientRect().top + window.scrollY <= y) cur = t;
+    links.forEach((a) => a.classList.toggle('on', a.getAttribute('href') === '#' + cur.id));
+  };
+  addEventListener('scroll', spy, { passive: true }); spy();
+  if (location.hash && document.getElementById(location.hash.slice(1))) setTimeout(() => document.getElementById(location.hash.slice(1)).scrollIntoView(), 60);
+})();
+</script>
+
+</body>
+</html>

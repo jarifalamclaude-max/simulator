@@ -1,252 +1,176 @@
-// Keyboard (two layouts on one keyboard) and gamepads. Each player is bound
-// to one device; read(device) returns the analogue axes and the action
-// buttons that were pressed since the last read (edge-triggered).
-// Every binding can be changed by the player (controls screen); the changes
-// are kept per device in the browser. Gamepads default to the ArduSub /
-// QGroundControl stick layout: left stick = heave + yaw, right = surge + sway.
+// Pilot input: gamepad (Gamepad API, standard mapping), keyboard and touch
+// sticks, turned into MAVLink MANUAL_CONTROL fields the way QGroundControl
+// sends them (x fwd, y lateral, z throttle 0..1000, r yaw, buttons in SDL order).
 
-export const DEVICES = [
-  { id: 'kbA', label: 'Keyboard — left (WASD)' },
-  { id: 'kbB', label: 'Keyboard — right (arrows)' },
-  { id: 'pad0', label: 'Gamepad 1' },
-  { id: 'pad1', label: 'Gamepad 2' },
-  { id: 'pad2', label: 'Gamepad 3' },
-  { id: 'pad3', label: 'Gamepad 4' },
-  { id: 'cpu', label: 'CPU (autopilot)' },
-];
-
-// one-shot actions (buttons / keys)
-export const ACTIONS = [
-  { id: 'marker', label: 'Drop marker' },
-  { id: 'torpedo', label: 'Fire torpedo' },
-  { id: 'grip', label: 'Gripper open / close' },
-  { id: 'camera', label: 'Camera: chase / front / down' },
-  { id: 'depthHold', label: 'Depth hold on / off' },
-  { id: 'skip', label: 'Skip the current task' },
-  { id: 'endRun', label: 'End run (keep points)' },
-  { id: 'restart', label: 'Forfeit: new run' },
-  { id: 'pause', label: 'Pause menu' },
-];
-// held buttons on a gamepad that drive an axis
-export const PAD_HOLDS = [
-  { id: 'rollLeft', label: 'Roll left' },
-  { id: 'rollRight', label: 'Roll right' },
-  { id: 'pitchUp', label: 'Pitch nose up' },
-  { id: 'pitchDown', label: 'Pitch nose down' },
-];
-// keyboard axes: [axis, sign]
-export const KEY_AXES = [
-  { id: 'surge+', label: 'Forward' }, { id: 'surge-', label: 'Back' },
-  { id: 'yaw-', label: 'Turn left' }, { id: 'yaw+', label: 'Turn right' },
-  { id: 'sway-', label: 'Strafe left' }, { id: 'sway+', label: 'Strafe right' },
-  { id: 'heave+', label: 'Up' }, { id: 'heave-', label: 'Down' },
-  { id: 'roll-', label: 'Roll left' }, { id: 'roll+', label: 'Roll right' },
-  { id: 'pitch+', label: 'Pitch up' }, { id: 'pitch-', label: 'Pitch down' },
-];
-
-// stick layouts: axis -> [gamepad axis index, sign]
-export const STICK_PRESETS = {
-  ardusub: { label: 'ArduSub / QGC', desc: 'left stick: up-down + turn · right stick: forward + strafe', map: { heave: [1, -1], yaw: [0, 1], surge: [3, -1], sway: [2, 1] } },
-  game: { label: 'Game', desc: 'left stick: forward + strafe · right stick: up-down + turn', map: { surge: [1, -1], sway: [0, 1], heave: [3, -1], yaw: [2, 1] } },
-  racing: { label: 'Racing', desc: 'left stick: forward + turn · right stick: up-down + strafe', map: { surge: [1, -1], yaw: [0, 1], heave: [3, -1], sway: [2, 1] } },
+const FLIGHT_KEYS = {
+  KeyW: ['x', 1], KeyS: ['x', -1], KeyA: ['r', -1], KeyD: ['r', 1], KeyQ: ['y', -1], KeyE: ['y', 1],
+  KeyR: ['z', 1], KeyF: ['z', -1], Space: ['z', 1], KeyC: ['z', -1],
+  ArrowUp: ['x', 1], ArrowDown: ['x', -1], ArrowLeft: ['y', -1], ArrowRight: ['y', 1],
+  KeyI: ['s', 1], KeyK: ['s', -1], KeyJ: ['t', -1], KeyL: ['t', 1],
 };
 
-export const DEFAULT_KEYS = {
-  kbA: {
-    axes: { 'surge+': 'KeyW', 'surge-': 'KeyS', 'yaw+': 'KeyD', 'yaw-': 'KeyA', 'sway+': 'KeyE', 'sway-': 'KeyQ', 'heave+': 'KeyR', 'heave-': 'KeyF', 'roll+': 'KeyX', 'roll-': 'KeyZ', 'pitch+': 'KeyT', 'pitch-': 'KeyG' },
-    actions: { marker: 'KeyV', torpedo: 'KeyB', grip: 'KeyC', camera: 'Digit1', depthHold: 'Digit2', endRun: 'Digit3', restart: 'Digit4', skip: 'Digit5', pause: 'Tab' },
-    fine: 'ShiftLeft',
-  },
-  kbB: {
-    axes: { 'surge+': 'ArrowUp', 'surge-': 'ArrowDown', 'yaw+': 'ArrowRight', 'yaw-': 'ArrowLeft', 'sway+': 'KeyL', 'sway-': 'KeyJ', 'heave+': 'KeyI', 'heave-': 'KeyK', 'roll+': 'KeyO', 'roll-': 'KeyU', 'pitch+': 'KeyY', 'pitch-': 'KeyH' },
-    actions: { marker: 'KeyN', torpedo: 'KeyM', grip: 'Comma', camera: 'Digit7', depthHold: 'Digit8', endRun: 'Digit9', restart: 'Digit0', skip: 'Minus', pause: 'Backspace' },
-    fine: 'ShiftRight',
-  },
-};
+export class InputManager {
+  constructor(app) {
+    this.app = app;
+    this.keys = new Set();
+    this.axesKb = { x: 0, y: 0, z: 0, r: 0, s: 0, t: 0 };
+    this.touch = { lx: 0, ly: 0, rx: 0, ry: 0, active: false };
+    this.gamepadIndex = null;
+    this.gamepadName = null;
+    this.gamepadBlocked = false;
+    this.lastPadButtons = [];
+    this.source = 'keyboard';
+    window.addEventListener('keydown', (e) => this.onKey(e, true));
+    window.addEventListener('keyup', (e) => this.onKey(e, false));
+    window.addEventListener('blur', () => this.keys.clear());
+    // starting to type in a field drops held flight keys (their keyup may never come to us)
+    window.addEventListener('focusin', (e) => { if (isTextEntry(e.target)) this.keys.clear(); });
+    try {
+      window.addEventListener('gamepadconnected', (e) => { this.gamepadIndex = e.gamepad.index; this.gamepadName = e.gamepad.id; this.app.toast?.(`Controller connected: ${shortName(e.gamepad.id)}`, 'good'); });
+      window.addEventListener('gamepaddisconnected', (e) => { if (this.gamepadIndex === e.gamepad.index) { this.gamepadIndex = null; this.gamepadName = null; this.app.toast?.('Controller disconnected', 'bad'); } });
+    } catch { /* ignore */ }
+  }
 
-// standard-mapping button indices
-export const DEFAULT_PAD = {
-  sticks: 'ardusub', invertY: false, triggersHeave: true,
-  buttons: { marker: 0, torpedo: 1, grip: 2, camera: 3, rollLeft: 4, rollRight: 5, depthHold: 8, pause: 9, endRun: 10, restart: 11, pitchUp: 12, pitchDown: 13, skip: 15 },
-};
+  // a text-like field has the keyboard: typing goes there, not to the vehicle
+  typing() {
+    const a = document.activeElement;
+    return isTextEntry(a);
+  }
 
-const clone = (o) => JSON.parse(JSON.stringify(o));
-const STORE = 'life-as-duburi-controls-v1';
+  onKey(e, down) {
+    const code = e.code;
+    // a release always counts, wherever the focus is (a key held while focus moves must not stick)
+    if (!down) { this.keys.delete(code); return; }
+    if (this.typing()) return;
+    const a = document.activeElement;
+    const tag = a?.tagName;
+    const control = tag === 'SELECT' || tag === 'BUTTON' || tag === 'INPUT' || tag === 'A';
+    // Enter / Backspace on a focused button or menu belong to it (dialogs, toggles)
+    if (control && (code === 'Enter' || code === 'NumpadEnter' || code === 'Backspace')) return;
+    // a focused select, button, slider or checkbox would turn W/A/S/D, arrows, Space and digits into
+    // its own navigation (the mode select changes flight mode on letters): flight keys win
+    const isFlight = code in FLIGHT_KEYS || code === 'ShiftLeft' || code === 'ShiftRight';
+    if (control && (isFlight || /^Digit[0-9]$/.test(code) || code === 'Equal' || code === 'Minus')) { if (!code.startsWith('Shift')) e.preventDefault(); a.blur?.(); }
+    if (!e.repeat) {
+      const handled = this.app.hotkey?.(code, e);
+      if (handled) { e.preventDefault(); return; }
+    }
+    if (isFlight) {
+      this.keys.add(code);
+      if (code.startsWith('Arrow') || code === 'Space') e.preventDefault();
+    }
+  }
 
-function loadAll() {
-  try { const s = JSON.parse(localStorage.getItem(STORE)); if (s && typeof s === 'object') return s; } catch { /* storage unavailable */ }
-  return {};
+  bindStick(el, side) {
+    const knob = el.querySelector('i');
+    let id = null;
+    const set = (e) => {
+      const r = el.getBoundingClientRect();
+      let x = ((e.clientX - r.left) / r.width) * 2 - 1, y = ((e.clientY - r.top) / r.height) * 2 - 1;
+      const l = Math.hypot(x, y);
+      if (l > 1) { x /= l; y /= l; }
+      knob.style.transform = `translate(${x * 40}px, ${y * 40}px)`;
+      if (side === 'left') { this.touch.lx = x; this.touch.ly = y; } else { this.touch.rx = x; this.touch.ry = y; }
+      this.touch.active = true;
+    };
+    el.addEventListener('pointerdown', (e) => { id = e.pointerId; el.setPointerCapture(id); set(e); });
+    el.addEventListener('pointermove', (e) => { if (e.pointerId === id) set(e); });
+    const end = (e) => {
+      if (e.pointerId !== id) return;
+      id = null; knob.style.transform = '';
+      if (side === 'left') { this.touch.lx = 0; this.touch.ly = 0; } else { this.touch.rx = 0; this.touch.ry = 0; }
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  }
+
+  readGamepad() {
+    let pads;
+    try { pads = navigator.getGamepads ? navigator.getGamepads() : []; }
+    catch { this.gamepadBlocked = true; return null; }
+    let pad = null;
+    if (this.gamepadIndex !== null && pads[this.gamepadIndex]) pad = pads[this.gamepadIndex];
+    else for (const p of pads || []) if (p && p.connected) { pad = p; this.gamepadIndex = p.index; this.gamepadName = p.id; break; }
+    return pad;
+  }
+
+  // returns MANUAL_CONTROL fields; dt for keyboard ramps
+  sample(dt, cfg) {
+    const jc = cfg.joystick;
+    const dz = jc.deadzone ?? 0.06, expo = jc.expo ?? 0;
+    const shape = (v) => {
+      const a = Math.abs(v);
+      if (a < dz) return 0;
+      let s = (a - dz) / (1 - dz);
+      s = (1 - expo) * s + expo * s * s * s;
+      return Math.sign(v) * Math.min(1, s);
+    };
+    // keyboard: ramp towards key targets
+    const target = { x: 0, y: 0, z: 0, r: 0, s: 0, t: 0 };
+    for (const k of this.keys) { const m = FLIGHT_KEYS[k]; if (m) target[m[0]] += m[1]; }
+    const ramp = 1 - Math.exp(-dt * 5); // first-order ramp, same response at any frame rate
+    for (const k of Object.keys(target)) this.axesKb[k] += (Math.max(-1, Math.min(1, target[k])) - this.axesKb[k]) * ramp;
+    const kbActive = Object.values(this.axesKb).some((v) => Math.abs(v) > 0.01);
+    let x = this.axesKb.x, y = this.axesKb.y, z = this.axesKb.z, r = this.axesKb.r, s = this.axesKb.s, t = this.axesKb.t;
+    let buttons = 0;
+    const pad = this.readGamepad();
+    this.padState = null;
+    if (pad) {
+      const ax = (m) => (m && pad.axes[m.axis] !== undefined ? (m.invert ? -1 : 1) * pad.axes[m.axis] : 0);
+      const gx = shape(ax(jc.axes.x)), gy = shape(ax(jc.axes.y)), gz = shape(ax(jc.axes.z)), gr = shape(ax(jc.axes.r));
+      const padActive = Math.abs(gx) + Math.abs(gy) + Math.abs(gz) + Math.abs(gr) > 0;
+      if (padActive || !kbActive) { x = gx; y = gy; z = gz; r = gr; }
+      const trig = (b) => (pad.buttons[b] ? pad.buttons[b].value : 0);
+      const lt = trig(6), rt = trig(7);
+      for (const [side, v] of [['left', lt], ['right', rt]]) {
+        const d = triggerContribution(jc.triggers[side], v, side);
+        s += d.s; t += d.t; z += d.z;
+      }
+      const map = jc.buttonMap || {};
+      pad.buttons.forEach((b, i) => { if (b.pressed && map[i] !== undefined && map[i] >= 0 && map[i] < 32) buttons |= 1 << map[i]; });
+      this.padState = { axes: Array.from(pad.axes), buttons: pad.buttons.map((b) => b.value), id: pad.id };
+      this.source = padActive ? 'gamepad' : kbActive ? 'keyboard' : this.gamepadName ? 'gamepad' : 'keyboard';
+    } else this.source = this.touch.active ? 'touch' : 'keyboard';
+    if (this.touch.active && (this.touch.lx || this.touch.ly || this.touch.rx || this.touch.ry)) {
+      r = shape(this.touch.lx); z = shape(-this.touch.ly); y = shape(this.touch.rx); x = shape(-this.touch.ry);
+    }
+    // keyboard Shift presses the joystick button whose BTNn_FUNCTION is shift (k_shift), if any
+    if (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')) { const b = shiftButtonIndex(cfg.params); if (b >= 0) buttons |= 1 << b; }
+    const cl = (v) => Math.max(-1, Math.min(1, v));
+    return {
+      x: Math.round(cl(x) * 1000), y: Math.round(cl(y) * 1000), z: Math.round(500 + cl(z) * 500), r: Math.round(cl(r) * 1000),
+      s: Math.round(cl(s) * 400), t: Math.round(cl(t) * 400), buttons: buttons >>> 0,
+    };
+  }
 }
 
-// the bindings of one device (defaults + the player's changes)
-export function getBindings(device) {
-  const saved = loadAll()[device];
-  if (device.startsWith('pad')) {
-    const b = clone(DEFAULT_PAD);
-    if (saved) Object.assign(b, saved, { buttons: { ...b.buttons, ...(saved.buttons || {}) } });
-    if (!STICK_PRESETS[b.sticks]) b.sticks = 'ardusub';
-    return b;
-  }
-  const d = clone(DEFAULT_KEYS[device] || DEFAULT_KEYS.kbA);
-  if (saved) { Object.assign(d.axes, saved.axes || {}); Object.assign(d.actions, saved.actions || {}); }
+// A focused element that takes typed text (not selects, buttons, checkboxes or sliders)
+export function isTextEntry(a) {
+  if (!a) return false;
+  if (a.isContentEditable || a.tagName === 'TEXTAREA') return true;
+  if (a.tagName !== 'INPUT') return false;
+  return !/^(button|checkbox|radio|range|color|file|submit|reset|image)$/i.test(a.type || 'text');
+}
+// Gamepad trigger (0..1) assigned to a function: left trigger is the negative side of a pitch/roll
+// pair, while Ascend/Descend act the same on either trigger.
+export function triggerContribution(fn, v, side) {
+  const d = { s: 0, t: 0, z: 0 };
+  const sv = side === 'left' ? -v : v;
+  if (fn === 'pitch') d.s = sv; else if (fn === 'roll') d.t = sv; else if (fn === 'up') d.z = v; else if (fn === 'down') d.z = -v;
   return d;
 }
-
-export function saveBindings(device, b) {
-  const all = loadAll();
-  all[device] = b;
-  try { localStorage.setItem(STORE, JSON.stringify(all)); } catch { /* ignore */ }
-  bindingCache.delete(device);
+// first joystick button with BTNn_FUNCTION = 1 (shift), as joystick.cpp:71-75 detects it; -1 if none
+export function shiftButtonIndex(P = {}) {
+  for (let i = 0; i < 32; i++) if ((P[`BTN${i}_FUNCTION`] ?? (i === 5 ? 1 : 0)) === 1) return i;
+  return -1;
 }
-
-export function resetBindings(device) {
-  const all = loadAll();
-  delete all[device];
-  try { localStorage.setItem(STORE, JSON.stringify(all)); } catch { /* ignore */ }
-  bindingCache.delete(device);
+export function shortName(id = '') {
+  const m = /^(.*?)\s*\(/.exec(id);
+  return (m ? m[1] : id).slice(0, 40) || 'Gamepad';
 }
-
-const bindingCache = new Map();
-function cached(device) {
-  if (!bindingCache.has(device)) bindingCache.set(device, getBindings(device));
-  return bindingCache.get(device);
-}
-
-// ---- names for the HUD / controls screen ----
-export function padStyle(pad) {
-  const id = (pad && pad.id || '').toLowerCase();
-  return /054c|sony|dualsense|dualshock|playstation|wireless controller/.test(id) ? 'ps' : 'xbox';
-}
-const PS_NAMES = ['✕', '○', '□', '△', 'L1', 'R1', 'L2', 'R2', 'Create', 'Options', 'L3', 'R3', 'D-pad ↑', 'D-pad ↓', 'D-pad ←', 'D-pad →', 'PS'];
-const XB_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'LS', 'RS', 'D-pad ↑', 'D-pad ↓', 'D-pad ←', 'D-pad →', 'Guide'];
-export function buttonName(i, style = 'ps') {
-  if (i == null || i < 0) return '—';
-  return (style === 'ps' ? PS_NAMES : XB_NAMES)[i] ?? `Button ${i}`;
-}
-export function keyName(code) {
-  if (!code) return '—';
-  const m = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Comma: ',', Period: '.', Minus: '-', Equal: '=', Slash: '/', Semicolon: ';', Quote: "'", BracketLeft: '[', BracketRight: ']', Backslash: '\\', Backquote: '`', Space: 'Space', ShiftLeft: 'Left Shift', ShiftRight: 'Right Shift', ControlLeft: 'Left Ctrl', ControlRight: 'Right Ctrl', AltLeft: 'Left Alt', AltRight: 'Right Alt', Enter: 'Enter', Backspace: 'Backspace', Tab: 'Tab' };
-  if (m[code]) return m[code];
-  if (code.startsWith('Key')) return code.slice(3);
-  if (code.startsWith('Digit')) return code.slice(5);
-  if (code.startsWith('Numpad')) return `Num ${code.slice(6)}`;
-  return code;
-}
-
-// [[key, what]] rows for the help screens, from the current bindings
-export function helpRows(device, style = 'ps') {
-  const label = (id) => (ACTIONS.find((a) => a.id === id) || PAD_HOLDS.find((a) => a.id === id) || {}).label;
-  if (device.startsWith('pad')) {
-    const b = getBindings(device);
-    const P = STICK_PRESETS[b.sticks];
-    const rows = [['Sticks', `${P.label}: ${P.desc}${b.invertY ? ' (Y inverted)' : ''}`]];
-    if (b.triggersHeave) rows.push([`${buttonName(6, style)} / ${buttonName(7, style)}`, 'down / up']);
-    for (const h of PAD_HOLDS) rows.push([buttonName(b.buttons[h.id], style), h.label]);
-    for (const a of ACTIONS) rows.push([buttonName(b.buttons[a.id], style), a.label]);
-    return rows;
-  }
-  const b = getBindings(device);
-  const rows = [];
-  for (let i = 0; i < KEY_AXES.length; i += 2) rows.push([`${keyName(b.axes[KEY_AXES[i].id])} / ${keyName(b.axes[KEY_AXES[i + 1].id])}`, `${KEY_AXES[i].label.toLowerCase()} / ${KEY_AXES[i + 1].label.toLowerCase()}`]);
-  for (const a of ACTIONS) rows.push([keyName(b.actions[a.id]), a.label]);
-  rows.push([keyName(b.fine), 'hold for fine control']);
-  return rows;
-}
-
-export const HELP = { get kbA() { return helpRows('kbA'); }, get kbB() { return helpRows('kbB'); }, get pad() { return helpRows('pad0'); } };
-
-export class Input {
-  constructor(target = window) {
-    this.down = new Set();
-    this.pressed = new Set();
-    this.padPrev = {};
-    this.onKey = (e) => {
-      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
-      const k = e.code;
-      if (e.type === 'keydown') {
-        if (!this.down.has(k)) this.pressed.add(k);
-        this.down.add(k);
-        if (k.startsWith('Arrow') || k === 'Space' || k === 'Tab' || k === 'Backspace') e.preventDefault();
-      } else this.down.delete(k);
-    };
-    this.onBlur = () => this.down.clear();
-    target.addEventListener('keydown', this.onKey);
-    target.addEventListener('keyup', this.onKey);
-    window.addEventListener('blur', this.onBlur);
-  }
-
-  consume(code) { const had = this.pressed.has(code); this.pressed.delete(code); return had; }
-  endFrame() { this.pressed.clear(); }
-  // forget cached bindings after the controls screen changed them
-  reloadBindings() { bindingCache.clear(); }
-
-  pads() { return navigator.getGamepads ? Array.from(navigator.getGamepads()).filter(Boolean) : []; }
-  pad(device) {
-    const idx = +device.slice(3);
-    return this.pads().find((p) => p.index === idx) ?? null;
-  }
-
-  read(device) {
-    const out = { axes: { surge: 0, sway: 0, heave: 0, yaw: 0, roll: 0, pitch: 0 }, actions: [] };
-    if (device === 'kbA' || device === 'kbB') {
-      const km = cached(device);
-      for (const [id, code] of Object.entries(km.axes)) {
-        if (!this.down.has(code)) continue;
-        const ax = id.slice(0, -1), s = id.endsWith('+') ? 1 : -1;
-        out.axes[ax] += s;
-      }
-      for (const k in out.axes) out.axes[k] = Math.max(-1, Math.min(1, out.axes[k]));
-      if (km.fine && this.down.has(km.fine)) for (const k in out.axes) out.axes[k] *= 0.35;
-      for (const [act, code] of Object.entries(km.actions)) if (code && this.pressed.has(code)) out.actions.push(act);
-      return out;
-    }
-    if (device.startsWith('pad')) {
-      const pad = this.pad(device);
-      if (!pad) return out;
-      const bnd = cached(device);
-      const dz = (v) => (Math.abs(v) < 0.12 ? 0 : (v - Math.sign(v) * 0.12) / 0.88);
-      const a = pad.axes;
-      for (const [ax, [i, s]] of Object.entries(STICK_PRESETS[bnd.sticks].map)) {
-        const inv = bnd.invertY && (i === 1 || i === 3) ? -1 : 1;
-        out.axes[ax] = s * inv * dz(a[i] || 0);
-      }
-      const b = (i) => (i >= 0 && pad.buttons[i] ? pad.buttons[i].value > 0.5 || pad.buttons[i].pressed : false);
-      const B = bnd.buttons;
-      out.axes.roll = (b(B.rollRight) ? 1 : 0) - (b(B.rollLeft) ? 1 : 0);
-      out.axes.pitch = (b(B.pitchUp) ? 1 : 0) - (b(B.pitchDown) ? 1 : 0);
-      // triggers also work for up / down
-      if (bnd.triggersHeave) {
-        const lt = pad.buttons[6]?.value || 0, rt = pad.buttons[7]?.value || 0;
-        if (Math.abs(out.axes.heave) < 0.05) out.axes.heave = rt - lt;
-      }
-      const prev = this.padPrev[device] || [];
-      const now = pad.buttons.map((x) => x.pressed);
-      for (const act of ACTIONS) { const i = B[act.id]; if (i >= 0 && now[i] && !prev[i]) out.actions.push(act.id); }
-      this.padPrev[device] = now;
-    }
-    return out;
-  }
-
-  // New gamepad button presses on every connected pad since the last call
-  // (menus and the join lobby): [{ pad: index, button }]
-  padPresses() {
-    const out = [];
-    this.navPrev = this.navPrev || {};
-    for (const pad of this.pads()) {
-      const prev = this.navPrev[pad.index] || [];
-      const now = pad.buttons.map((b) => b.pressed || b.value > 0.5);
-      // left stick as a d-pad for menus
-      const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0;
-      now[12] = now[12] || ay < -0.6; now[13] = now[13] || ay > 0.6; now[14] = now[14] || ax < -0.6; now[15] = now[15] || ax > 0.6;
-      now.forEach((v, i) => { if (v && !prev[i]) out.push({ pad: pad.index, button: i }); });
-      this.navPrev[pad.index] = now;
-    }
-    return out;
-  }
-
-  dispose() {
-    window.removeEventListener('keydown', this.onKey);
-    window.removeEventListener('keyup', this.onKey);
-    window.removeEventListener('blur', this.onBlur);
-  }
-}
+export const KEY_HELP = [
+  ['W / S', 'Forward / back'], ['A / D', 'Yaw left / right'], ['Q / E', 'Strafe left / right'], ['R / F (Space / C)', 'Ascend / descend'],
+  ['I / K', 'Pitch input (6-DOF)'], ['J / L', 'Roll input (6-DOF)'], ['Enter', 'Arm / disarm'], ['1-6', 'Manual, Stabilize, Depth hold, Acro, Position hold, Surface'],
+  ['+ / −', 'Pilot gain'], ['V', 'Next camera'], ['G', 'Graphs'], ['P', 'Pause'], ['Backspace', 'Reset vehicle'], ['Shift', 'Presses the joystick button set to shift (BTNn_FUNCTION = 1)'],
+  ['Flight keys', 'Work whenever no text field has the focus (a focused menu or button lets go of them)'],
+];

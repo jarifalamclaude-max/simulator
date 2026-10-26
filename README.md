@@ -1,284 +1,110 @@
-# Life as Duburi
+# DUBURI — ROV Simulator
 
-![Life as Duburi title screen](screenshots/title.jpg)
+Put your ROV in a virtual pool instead of the water. Upload your 3D design, check
+that your thruster layout really gives roll, pitch and yaw, fly it with a gamepad
+through a faithful port of the ArduSub 4.5.7 controllers, and tune the parameters
+before the first pool session. Everything runs in one HTML file in the browser.
 
-**Life as Duburi** is an underwater robotics game by **Team BRACU DUBURI**. You are an
-autonomous underwater vehicle on a real AUV-competition course: pass the gate, run the slalom,
-drop markers in the bin, fire torpedoes through a board, clean up trash at the octagon and
-come home. 1 to 4 players in the same water on one screen — PS5-couch style split screen,
-keyboards or gamepads, with optional CPU opponents.
+**Open it online:** <https://jarifalam13.github.io/DUBURI_SIM/> (Chrome or Edge recommended; needs WebGL2).
 
-The vehicles run on the **DUBURI ROV simulator**'s own physics: 6-DOF hydrodynamics,
-Blue Robotics T200 / T500 thruster curves, ArduSub-style stabilise + depth hold, EOS-80 sea
-water. The physics modules in `src/physics`, `src/alloc`, `src/core` and `src/hydro` come
-unchanged from the [DUBURI simulator](https://github.com/jarifalamclaude-max/simulator).
+**Documentation:** <https://jarifalam13.github.io/DUBURI_SIM/guide/> — user guide with screenshots, the physics and control equations, and all 2708 parameters.
 
-## ▶ Play
+**Or offline:** download `dist/duburi-sim.html` and double-click it. Nothing to install.
 
-* **Offline, no install:** download [`dist/life-as-duburi.html`](dist/life-as-duburi.html) and
-  double-click it. Everything (code, textures, logo, sound) is inside that one file.
-* **On GitHub Pages:** in the repository's *Settings → Pages* choose branch `main`, folder
-  `/docs`; the game is then at `https://<owner>.github.io/<repository>/`, for example
-  `https://jarifalamclaude-max.github.io/Life_in_DUBURI/`.
+## What it does
 
-Chrome, Edge or Firefox with WebGL2. Gamepads (PlayStation / Xbox) work in Chrome and Edge.
-If a laptop struggles, set *Graphics* to Medium or Low in the pause menu.
+| | |
+|---|---|
+| **Your design** | Upload STL (binary/ASCII), OBJ or PLY — top-bar *Upload design* or drop the file anywhere. Pick units and which axis is forward/up; the hull is voxelised for volume, centre of buoyancy, inertia, projected areas and contact points. The thrusters in the file are found automatically — by part name (`T200_3`, `Thruster 5` in OBJ groups or ASCII STL solids) or by duct shape (T200 / T500 / generic) — matched to your `FRAME_CONFIG` for motor order and push direction, and proposed as a custom frame (Accept, Flip, Discard). |
+| **Frame** | Picture cards for every ArduSub `FRAME_CONFIG` and the automatic mixer, a top and side drawing of your thrusters, and command sliders that light up the thrusters that fire and show the force/torque that results — or fly the vehicle with them. |
+| **Custom frame builder** | Add up to 12 thrusters (T200 / T500 / generic / your measured table), drag them on the top and side drawings (5 mm steps), set direction (presets, ±45° rotate, flip), mirror, remove, reverse `MOT_n_DIRECTION`, start from any built-in layout, and copy the resulting mixer as `add_motor_raw_6dof()` lines for a custom ArduSub build. |
+| **Body shape without CAD** | Simple open-frame, closed-box or torpedo bodies with your dimensions and a duct at every thruster — or your STL/OBJ/PLY, or the sample ROV. |
+| **Thruster layout → DOF** | Place thrusters on the model (click the hull). The allocator finds the largest set of independently controllable axes — full 6-DOF when the layout allows it, otherwise the maximum possible — and reports authority and cross-coupling per axis. Or fly the exact ArduSub `FRAME_CONFIG` table. |
+| **Your parameter file** | All 2708 ArduSub 4.5.7 parameters, generated from the ArduPilot source (`tools/gen-params.mjs`) with types, defaults, ranges, units, value lists and bitmasks. About 670 drive the simulation; the rest (calibration, EKF tuning, serial, logging, …) are kept exactly and written back on export. Mission Planner and QGC files round-trip losslessly; legacy names are converted. |
+| **ArduSub 4.5.7 port** | `AP_Motors6DOF` (mixers, saturation, full spool state machine, battery current limiter, `MOT_PWM_TYPE`, `SERVOn_FUNCTION` routing, motor test), `AC_PID` with SMAX slew limiter, D_FF and notch filters, `AC_AttitudeControl_Sub`, `AC_PosControl` (depth and XY), `joystick.cpp` with every `BTNn_FUNCTION`, RC1–16, the AP_Scheduler task table at ArduSub rates, AP_Arming_Sub checks, all modes (Manual, Stabilize, Acro, Depth Hold, SurfTrak, Position Hold, Surface, Guided, Auto, Circle, Motor Detect) and all failsafes (pilot input, GCS, leak, pressure, temperature, battery, EKF, crash, depth sensor, terrain). Every change is listed in [AUDIT.md](AUDIT.md). |
+| **Fly** | Keyboard or gamepad (Gamepad API, QGC button numbering), Cockpit/QGC-style HUD, chase/orbit/camera/top views, live target-vs-actual graphs, CSV logs. |
+| **Pool & water** | Any length, width and depth — test tank to open sea — with a flat floor or a shallow end and slope; wall height; presets; fresh or sea water; current, turbulence and linear waves. |
+| **Pressure** | Absolute pressure = air pressure + water column, with compressible water (UNESCO EOS-80). Buoyancy changes with depth (water density, hull compressibility). Bar02 / Bar30 / custom depth sensor with range limit and resolution, read through AP_Baro's formula (9800 Pa/m × `BARO_SPEC_GRAV`). Housings leak past their depth rating (orifice flow against the Boyle-compressed air inside) → leak detector → ArduSub failsafes. |
+| **Hydrodynamics** | 6-DOF Fossen plant with full 6×6 added mass and its Coriolis/Munk terms, coupled linear + quadratic damping, surface-aware buoyancy, thruster in-flow loss, ventilation and jet–hull interaction. |
+| **Added mass (BEM)** | Constant-source panel method on a smooth hull mesh, GMRES, three resolutions with Richardson extrapolation and a GCI-style uncertainty. |
+| **Drag & damping (CFD)** | Lattice-Boltzmann (D3Q19, regularised BGK + Smagorinsky LES, Bouzidi interpolated walls with moving-wall term, momentum exchange) in a virtual tow tank on the GPU (WebGL2), with grid convergence (Celik et al. 2008 GCI) and Reynolds extrapolation C(Re) = C∞ + K/Re. Streamlines and hull pressure shown on the 3D model. |
+| **AUTO-TUNE** | One click: converged BEM added mass + CFD damping for *your* design, then closed-loop step tests to tune roll, pitch, yaw and depth gains. Every value is shown, editable and only applied when you say so. Mass, CG and thrust you entered are never overwritten. |
+| **Teams** | DUBURI wordmark with per-team name, logo and colour; each team keeps its own vehicle in the browser. |
 
-## Promo video
+## Quick start
 
-[![Life as Duburi — promo video (40 s)](screenshots/promo.jpg)](promo/life-as-duburi-promo.mp4)
+1. **Upload design** (top bar). Set units and axes in *Vehicle*.
+2. Enter what you know: real mass and CG, thruster positions/directions/polarity, measured thrust tables if you have them.
+3. **Pool & water**: your pool size and depth, water type, housing depth rating.
+4. **Frame**: pick the frame and try each axis with the sliders (details in *Frame & mixer*).
+5. **AUTO-TUNE** → review → *Apply selected*.
+6. Fly: `Enter` arms, `1`–`6` change mode, `G` shows graphs. Gamepad works in Chrome/Edge.
+7. *Save .param* and load it on the Pixhawk with QGroundControl or Mission Planner.
 
-[▶ Watch the 40-second promo](promo/life-as-duburi-promo.mp4) — recorded frame by frame from the game
-itself (CPU autopilots flying the course), with an original synthesised soundtrack.
+## Validation
 
-## Join like on a console
+All numbers below are reproducible with the tools in `tools/` and the tests in `tests/` (185 automated tests, `npm test`).
 
-![Lobby](screenshots/lobby.jpg)
+| Check | Result |
+|---|---|
+| Sphere drag, CFD pipeline at Re = 100 (`npm run validate:cfd`) | 8 / 12 / 16 cells per diameter: Cd 1.311 / 1.189 / 1.143 → Richardson 1.074 vs 1.088 standard curve (−1.2 %) |
+| GPU (WebGL2) vs CPU lattice-Boltzmann (`node tools/gpu-check.mjs`) | state difference ~4 × 10⁻⁷, with and without interpolated walls and rotation |
+| Panel method vs Capytaine on identical meshes (`tools/bem-crosscheck.py`) | within ~0.2–1 % (largest: ROV heave 2.1 % at 3 966 panels) |
+| Panel method vs exact ellipsoid (Lamb) at 3 380 panels | +0.5 … +1.9 % |
+| WebAssembly kernels vs JavaScript | BEM ≤ 2 × 10⁻⁵ relative, LBM ≤ 10⁻⁶; BEM 3.3× faster |
+| EOS-80 seawater density and bulk modulus | all 14 UNESCO check values to < 0.01 ppm |
+| Displaced volume (exact along rays, fine across) | thin 12.7 mm plates within 0.04 % (plain voxels: +31 %); slanted rod −0.04 %; sphere and box exact |
+| Firmware port | mixer maths, RC scaling, sqrt controller, spool logic, button mapping and failsafes checked against the ArduSub source behaviour |
 
-Press **✕ / A** on a controller, **Space** (left keyboard) or **Enter** (right keyboard) to join.
-Each player picks a vehicle with **◀ ▶** and a colour with **▲ ▼**, **Share / View** shows the
-controller layout, **△ / Y** adds a CPU opponent, **Options / Start** starts the match. The screen splits by itself: one player full
-screen, two side by side, three or four in quarters (with three, the fourth quarter is a TV
-camera that follows the leader, with live standings).
+## Limits — read before trusting a number
 
-![Split screen](screenshots/split-screen.jpg)
+- Not the ArduSub binary (no SITL): the control code is ported; the EKF is replaced by an estimator with realistic noise; no compass, GPS or MAVLink link.
+- The tether is not modelled.
+- The CFD runs at Re of a few thousand and extrapolates; reliable for open frames and boxy hulls (sharp-edge separation), less for smooth streamlined hulls. Each result carries its grid uncertainty.
+- The panel method is ideal-flow; parts thinner than a voxel are thickened slightly.
+- Water temperature is uniform with depth; thrusters and electronics don't change with pressure.
+- Results are only as good as the mass, CG and thruster data you enter. Measure them.
 
-## Vehicles
-
-| Vehicle | Build | Character |
-|---|---|---|
-| **Duburi** | open frame, 8 × T200 vectored (BlueROV2 Heavy layout) | full 6-DOF, good at everything, clean rolls for gate style |
-| **Dubo Mini** | mini AUV, **5** small thrusters: 2 drive, 1 lateral tunnel, 2 vertical tunnels | light and quick to strafe, does pitch flips, gets pushed by current |
-| **Barracuda** | torpedo AUV, 5 × T200 | fastest (2 m/s) but turns slowly and cannot roll |
-| **Kraken** | box frame, 6 × T500 | heavy, very stable, shrugs off current, no pitch control |
-| **Manta** | flat wing, 8 × T200 | the stunt bot — rolls fast, a bit twitchy in waves |
-
-Speeds, turn rates and controllable axes in the lobby are computed from each design's
-thrusters and drag, not typed in.
-
-## Water
-
-| Swimming pool | Pacific Ocean | Arctic Ocean |
-|---|---|---|
-| ![](screenshots/pool.jpg) | ![](screenshots/pacific.jpg) | ![](screenshots/arctic.jpg) |
-| 7 m deep, 26 °C fresh water, tiled pool | 12 m, 22 °C reef lagoon, sand and coral, swell | 15 m, −1.5 °C under the sea ice, marine snow |
-
-Depth can also be set to 5–20 m in the lobby. The water is physical, not just a look: density
-comes from temperature and salinity (EOS-80), so the same vehicle is ~3 % more buoyant in the
-Arctic than in the pool, and current, turbulence and waves really push you around.
-
-## Graphics and sound
-
-* Post-processing on every split-screen view: bloom, underwater colour absorption that gets
-  stronger with depth and murk, refraction wobble, vignette, chromatic aberration, film grain.
-* Sun shadows, image-based reflections on metal and acrylic, caustics on the floor, god rays,
-  thruster bubbles that rise and pop at the surface, marine snow, coral, fish, jellyfish and sea ice.
-* Synthesised underwater sound: each thruster's blade-pass hum and motor whine follow its real
-  rpm, prop wash and cavitation, muffled water acoustics with a dark room echo, bubbles and
-  ambience, hydrophone pings from the pingers, splashes, thuds and gripper servos. Other
-  vehicles are heard by distance and direction.
-* Graphics quality High / Medium / Low in the pause menu.
-
-## The tasks
-
-| | Task | What to do |
-|---|---|---|
-| 0 | **Heading out** | Optional coin flip sets your start heading. Dive before leaving the start zone. |
-| 1 | **Gate** | Pass under the reef-shark or sawfish side: that is *your* animal for the run. Roll / pitch / yaw quarter-turns in the gate zone score style. |
-| 2 | **Slalom** | 3 sets of white / red / white pipes near the floor. Keep the red pipe on the same side as at the gate. |
-| 3 | **Bin** | Drop 2 markers in the 12 × 24 in bin, in your animal's half (use the down camera). |
-| 4 | **Torpedoes** | Fire 2 torpedoes through the 4 in openings, your animal first, from behind the 2 m line. |
-| 5 | **Octagon** | Follow the 30 kHz pinger. Put the cup and spoon in their baskets, spin once per item, surface inside the octagon, face your animal. |
-| 6 | **Return home** | Back through the gate under water. |
-
-| Gate | Torpedo board | Bin (down camera) |
-|---|---|---|
-| ![](screenshots/gate.jpg) | ![](screenshots/torpedo-board.jpg) | ![](screenshots/bin.jpg) |
-
-**Rules:** the gate must come first; surfacing anywhere except inside the octagon is a *breach*
-and ends the run; the best run counts; a time bonus (100 points per minute left) needs gate +
-bin or torpedo + octagon surface.
-
-### Skip, forfeit, leave, quit
-
-![Pause menu](screenshots/pause.jpg)
-
-Next to the clock there are always two buttons: **⏸ Pause** and **✕ Quit match** (it asks
-before quitting). Each player also has their own pause menu (**Options / Menu**, **Tab** or
-**Backspace**; **Esc** for player 1), driven with their own controller:
-
-* **Quit match** — the match ends and everyone goes back to the lobby.
-* **Skip task** — no points for it; you are moved to the start of the next task.
-* **End run** — stop here and keep the points.
-* **Forfeit run** — lose this run's points and start again from the dock.
-* **Leave match** — you drop out, the others keep playing and the screen re-splits.
-* **Restart match** — same players, same water, from the start.
-
-## Controls — see them, change them
-
-![Controls screen](screenshots/controls.jpg)
-
-Pick up a controller and the game shows you its layout: every player gets a card with *their*
-controller (or keys) at the start of a match, and the **Controls** screen (title screen, lobby,
-**Share / View** on a controller in the lobby, or *Controls & customise* in the pause menu)
-draws the PlayStation or Xbox controller with what every button does — buttons light up live
-as you press them.
-
-Everything can be changed and is remembered in the browser, separately for each controller and
-each keyboard side:
-
-* **Buttons / keys:** select an action and press the new button or key; one already in use is
-  swapped.
-* **Sticks:** ArduSub / QGC (left: up-down + turn, right: forward + strafe), Game (left:
-  forward + strafe, right: up-down + turn) or Racing (left: forward + turn, right: up-down +
-  strafe); invert Y; triggers for up / down on or off.
-* **Reset** brings back the defaults.
-
-![Start-of-match controls card](screenshots/controls-card.jpg)
-
-Defaults:
-
-| | Keyboard left | Keyboard right | Gamepad (PS / Xbox) |
-|---|---|---|---|
-| Forward / back | W / S | ↑ / ↓ | right stick ↕ |
-| Turn | A / D | ← / → | left stick ↔ |
-| Strafe | Q / E | J / L | right stick ↔ |
-| Up / down | R / F | I / K | left stick ↕, L2 / R2 |
-| Roll / pitch (style) | Z X / T G | U O / Y H | L1 R1 / D-pad ↑ ↓ |
-| Drop marker / fire torpedo / gripper | V / B / C | N / M / , | ✕ A / ○ B / □ X |
-| Camera (chase → front → down) | 1 | 7 | △ Y |
-| Depth hold on / off | 2 | 8 | Create / View |
-| End run / forfeit / skip task | 3 / 4 / 5 | 9 / 0 / − | L3 / R3 / D-pad → |
-| Pause menu | Tab or Esc | Backspace | Options / Menu |
-
-Hold Shift for fine control. The HUD shows depth, heading, speed, net buoyancy, an attitude
-ball, the hydrophone ring pointing at the 30 kHz (octagon) and 25 kHz (torpedo) pingers, a
-mini-map and your task list.
-
-![Results](screenshots/results.jpg)
-
-## Develop
+## Development
 
 ```bash
 npm install
-npm run build      # -> dist/life-as-duburi.html and docs/index.html
-npm test           # headless: physics, rules, skip / forfeit / leave, full CPU runs in every water
-npm run e2e        # browser tests with screenshots, incl. a simulated DualSense (needs Playwright + Chromium)
+npm test               # 185 unit tests (physics, firmware, controllers, params, joystick, allocation, BEM, CFD, WASM, pressure, shapes, tuning, thruster detection)
+npm run build          # -> dist/duburi-sim.html (stand-alone), dist/artifact.html, docs/index.html (GitHub Pages)
+npm run build:wasm     # recompile src/wasm/kernels.c (needs clang with wasm32)
+npm run validate:cfd   # sphere drag through the full CFD pipeline
+node tools/gpu-check.mjs                   # GPU vs CPU LBM (needs Playwright + Chromium)
+node tools/bem-export.mjs bem.json && python3 tools/bem-crosscheck.py bem.json   # needs capytaine
 ```
 
 ```
 src/
-  main.js       entry: renderer, split screen, pause menus, game loop
-  sim/          vehicles, course layout, task judging, autopilot (no graphics, runs in node)
-  render/       scenery, course elements, vehicle models, post-processing, bubbles, shadows
-  ui/           lobby and menus, HUD, keyboard / gamepad input and re-binding, controls screen, sound engine
-  physics/ alloc/ core/ hydro/   from the DUBURI simulator: water, thrusters, allocation, maths
-assets/         DUBURI logo and the task pictures
-tests/          node tests + browser test
-dist/           the built game (one HTML file)
-docs/           the same file for GitHub Pages
-screenshots/    pictures for this README
+  core/       math, seeded RNG, grid-convergence (GCI)
+  geometry/   STL/OBJ/PLY, voxelisation, mass properties, smooth hull extraction
+  alloc/      ArduSub frame tables, thruster allocation & DOF analysis
+  hydro/      water properties (EOS-80), BEM panel method, hull meshing
+  cfd/        D3Q19 lattice-Boltzmann (CPU, WebGL2 GPU), tow-tank studies
+  wasm/       C kernels compiled to WebAssembly (BEM, LBM)
+  physics/    thruster model, environment (pool, pressure), 6-DOF plant
+  ardusub/    ArduSub 4.5.7 port: params, motors, attitude, position, joystick, sensors, modes
+  sim/        simulation loop, telemetry, step tests and auto-tune
+  ui/         three.js scene, HUD, panels, graphs, jobs/worker
+  worker/     background worker (BEM, CFD, auto-tune)
+profiles/     DUBURI Pixhawk parameter file
+tools/        validation and build tools
 ```
 
-## What each file does
+### Hosting
 
-### Top level
+GitHub Pages serves `docs/index.html` from the `main` branch (Settings → Pages →
+Deploy from a branch → `main`, `/docs`). After a change: `npm run build`, commit,
+push; the site updates in a minute or two.
 
-| File | What it is for |
-|---|---|
-| `README.md` | This guide. |
-| `LICENSE` | GPL-3.0-or-later licence. |
-| `package.json` / `package-lock.json` | npm project: dependencies (three.js, esbuild) and the `build`, `test` and `e2e` scripts. |
-| `build.mjs` | Build script: bundles `src/` with esbuild and inlines the CSS, images and code into one HTML file. |
-| `.gitignore` | Files git ignores (`node_modules/`, test output). |
-| `dist/life-as-duburi.html` | **The built game** in one file. Download and double-click to play offline. |
-| `docs/index.html` | The same built game, served by GitHub Pages. |
-| `docs/.nojekyll` | Tells GitHub Pages to serve the file as it is. |
+### Conventions
 
-### `assets/` — pictures packed into the game
+- World frame NED, origin at the still-water surface, pool centre. Body frame FRD, origin at the CG.
+- Euler angles follow ArduPilot (3-2-1). Thruster positions in metres from the model origin.
 
-| File | What it is for |
-|---|---|
-| `logo.jpg` | BRACU DUBURI logo: title screen, HUD, dock sign, pool banners, Duburi bot side plates. |
-| `shark.jpg`, `sawfish.jpg` | Animal prints hanging on the gate and the octagon. |
-| `bin-shark.jpg`, `bin-sawfish.jpg` | The two halves inside the bin; also the "chosen animal" icon on the HUD. |
-| `board-shark-top.jpg`, `board-sawfish-top.jpg` | The two versions of the torpedo board picture. |
+## License
 
-### `src/` — the game code
-
-| File | What it is for |
-|---|---|
-| `main.js` | Entry point. Creates the renderer, runs the game loop (120 Hz physics, interpolated drawing), splits the screen per player, handles the pause menus, the controls screen and re-binding, results, bubbles, sound and the TV camera. |
-
-**`src/sim/` — game logic (no graphics; also runs in node for the tests)**
-
-| File | What it is for |
-|---|---|
-| `game.js` | One match: clock, players, runs, markers / torpedoes / trash, and the judging of every task and rule (gate first, breach, skip, forfeit, leave, time bonus). Point values are in `POINTS`. |
-| `vehicle.js` | Vehicle physics (6-DOF body in water, buoyancy, drag, thrusters) and the pilot loop (stabilise, depth hold, roll / pitch flips). |
-| `bots.js` | The five vehicles: Duburi, Dubo Mini, Barracuda, Kraken, Manta — mass, size, drag, thruster layout. |
-| `course.js` | Where every course element is (gate, path markers, slalom, bin, torpedo board, octagon, pingers, dock) and its sizes. |
-| `collide.js` | Collisions of vehicles with the course, the floor, the walls and each other. |
-| `scenarios.js` | The three waters (pool, Pacific, Arctic): temperature, salinity, current, waves, depth, colours. |
-| `autopilot.js` | CPU opponent: flies the whole course with the same controls a player uses. |
-| `stats.js` | Speed, turn rate, axes and buoyancy shown in the lobby, worked out from the physics. |
-
-**`src/render/` — 3D graphics (three.js)**
-
-| File | What it is for |
-|---|---|
-| `scenery.js` | The water world: surface and waves, floor and caustics, pool walls, coral, ice, fish, jellyfish, particles, light rays, fog. |
-| `course3d.js` | 3D models of the course elements. |
-| `bots3d.js` | 3D models of the five vehicles (spinning props, gripper, markers, torpedoes) and of the payload items. |
-| `art.js` | Loads the animal pictures as textures. |
-| `post.js` | Post-processing per split-screen view: bloom, underwater colour and wobble, vignette, grain, tone mapping. |
-| `bubbles.js` | Bubble particles from thrusters, torpedoes, markers and splashes. |
-| `graphics.js` | Graphics quality presets (High / Medium / Low), reflections and sun shadows. |
-
-**`src/ui/` — menus, HUD, input, sound**
-
-| File | What it is for |
-|---|---|
-| `menu.js` | Title screen, lobby (join, vehicle, colour, water, depth, clock), how-to-play, results table. |
-| `hud.js` | In-game HUD per player: score, depth, heading, attitude ball, hydrophone, mini-map, task list, messages, controls card, leaderboard. |
-| `input.js` | Keyboard and gamepad reading, default and saved button / key bindings, stick presets. |
-| `controls.js` | Controls screen: the controller drawing, the list of bindings to change, and the start-of-match card. |
-| `audio.js` | Synthesised sound: thrusters, underwater ambience, pingers, splashes, hits, menu sounds. |
-| `style.css` | Look of all menus and the HUD. |
-
-**From the DUBURI simulator (unchanged)**
-
-| File | What it is for |
-|---|---|
-| `physics/environment.js` | The water body: pressure, density with depth, current, turbulence, waves. |
-| `physics/thruster.js` | T200 / T500 / small thruster models: thrust curves, rotor lag, in-flow, ventilation. |
-| `alloc/allocation.js`, `alloc/frames.js` | Thruster allocation (which thruster pushes how much for each move) and ArduSub frame layouts. |
-| `hydro/water.js` | Sea-water density and viscosity (EOS-80). |
-| `core/math.js`, `core/rng.js` | Maths helpers (vectors, quaternions, matrices) and a seeded random number generator. |
-
-### `tests/`
-
-| File | What it is for |
-|---|---|
-| `game.test.mjs` | Node tests (`npm test`): physics, buoyancy, rules, skip / forfeit / leave, depth, full CPU runs for every vehicle and water. |
-| `e2e.mjs` | Browser test with screenshots: menus, all waters, 1–4 players, pause menu, lobby join, leave, forfeit. |
-| `controls-e2e.mjs` | Browser test with a simulated DualSense: join, layout screen, button and key re-binding. |
-
-### `promo/` — the promo video
-
-| File | What it is for |
-|---|---|
-| `life-as-duburi-promo.mp4` | The 40-second promo video (1280×720, 30 fps). |
-| `music.mp3` | Its soundtrack: an original 120 BPM track, synthesised by `music.py`. |
-| `music.py` | Makes the soundtrack (Python + numpy): drums, bass, arpeggio, risers and impacts timed to the cuts. |
-| `capture.mjs` | Records the video frame by frame from the built game (Playwright + Chromium) with the captions; the ffmpeg command to join frames and music is at its top. |
-
-### `screenshots/`
-
-Pictures used in this README.
-
-## Credits
-
-Team **BRACU DUBURI**, BRAC University. Built on the DUBURI ROV simulator. Task layout, sizes
-and pictures follow the 2025 AUV-competition team handbook published by RoboNation. Licence:
-GPL-3.0-or-later (see [LICENSE](LICENSE)).
+GPL-3.0-or-later (the control code is a port of ArduPilot, which is GPL-3.0). three.js is MIT.
